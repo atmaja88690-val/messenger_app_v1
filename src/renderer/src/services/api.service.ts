@@ -1,0 +1,249 @@
+import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
+import { API_URL, TOKEN_KEY, REFRESH_KEY } from '../config/constants'
+import type { LoginResponse, AuthTokens } from '../types'
+import {
+  scheduleProactiveRefresh,
+  clearProactiveRefresh,
+  setRefreshing
+} from './token-scheduler.service'
+
+const api: AxiosInstance = axios.create({
+  baseURL: API_URL,
+  timeout: 15000,
+  headers: { 'Content-Type': 'application/json' }
+})
+
+api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const token = localStorage.getItem(TOKEN_KEY)
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+let isReactiveRefreshing = false
+let refreshQueue: Array<(token: string | null) => void> = []
+
+function drainQueue(token: string | null) {
+  refreshQueue.forEach((cb) => cb(token))
+  refreshQueue = []
+}
+
+// Bedakan: apakah error refresh karena SERVER menolak (401/403 = token invalid)
+// atau karena NETWORK (gak ada response = offline/timeout/DNS).
+function isAuthRejection(err: unknown): boolean {
+  const status = (err as { response?: { status?: number } })?.response?.status
+  return status === 401 || status === 403
+}
+
+function hardLogout() {
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REFRESH_KEY)
+  clearProactiveRefresh()
+  window.dispatchEvent(new Event('bsi:logout'))
+}
+
+/**
+ * Refresh token.
+ * - Sukses → simpan token baru, jadwalkan proaktif, return token.
+ * - Gagal NETWORK → THROW (token DIPERTAHANKAN; akan dicoba lagi saat online/wake).
+ * - Gagal AUTH (401/403) → hardLogout + return null (refresh token beneran invalid).
+ */
+async function performTokenRefresh(): Promise<string | null> {
+  const storedRefresh = localStorage.getItem(REFRESH_KEY)
+  if (!storedRefresh) {
+    hardLogout()
+    return null
+  }
+
+  try {
+    const { data } = await axios.post<AuthTokens>(
+      `${API_URL}/auth/refresh`,
+      { refreshToken: storedRefresh },
+      { timeout: 15000 }
+    )
+    localStorage.setItem(TOKEN_KEY, data.accessToken)
+    localStorage.setItem(REFRESH_KEY, data.refreshToken)
+
+    scheduleProactiveRefresh(data.accessToken, async () => {
+      const newToken = await performTokenRefresh()
+      if (newToken) {
+        import('./ws.service').then(({ wsService }) => {
+          wsService.reconnectNow()
+        })
+      }
+    })
+
+    return data.accessToken
+  } catch (err) {
+    if (isAuthRejection(err)) {
+      // Server bilang refresh token invalid → logout beneran
+      hardLogout()
+      return null
+    }
+    // NETWORK error (offline/timeout/DNS) → JANGAN logout. Token dipertahankan.
+    // Lempar ke pemanggil; token-scheduler akan retry saat online/wake.
+    console.warn('[api] Refresh gagal karena network — token dipertahankan, akan dicoba lagi saat online.')
+    throw err
+  }
+}
+
+api.interceptors.response.use(
+  (res) => res,
+  async (error) => {
+    const original = error.config
+
+    const isAuthEndpoint =
+      original?.url?.includes('/auth/refresh') ||
+      original?.url?.includes('/auth/logout')
+
+    if (error.response?.status !== 401 || original._retry || isAuthEndpoint) {
+      return Promise.reject(error)
+    }
+
+    const storedRefresh = localStorage.getItem(REFRESH_KEY)
+    if (!storedRefresh) {
+      hardLogout()
+      return Promise.reject(error)
+    }
+
+    original._retry = true
+
+    if (isReactiveRefreshing) {
+      return new Promise((resolve, reject) => {
+        refreshQueue.push((token: string | null) => {
+          if (!token) return reject(error)
+          original.headers.Authorization = `Bearer ${token}`
+          resolve(api(original))
+        })
+      })
+    }
+
+    isReactiveRefreshing = true
+    setRefreshing(true)
+
+    try {
+      const newToken = await performTokenRefresh()
+      if (!newToken) {
+        drainQueue(null)
+        return Promise.reject(error)
+      }
+      drainQueue(newToken)
+      import('./ws.service').then(({ wsService }) => {
+        wsService.reconnectNow()
+      })
+      original.headers.Authorization = `Bearer ${newToken}`
+      return api(original)
+    } catch (err) {
+      // performTokenRefresh throw HANYA untuk network error.
+      // Network → JANGAN logout; biarkan request gagal, app tetap login,
+      // token-scheduler akan refresh saat online/wake.
+      drainQueue(null)
+      console.warn('[api] 401 + refresh gagal network — tetap login, menunggu online.')
+      return Promise.reject(err)
+    } finally {
+      isReactiveRefreshing = false
+      setRefreshing(false)
+    }
+  }
+)
+
+// Auth
+export const authApi = {
+  login: (username: string, password: string) =>
+    api.post<LoginResponse>('/auth/login', { username, password }),
+  logout: () =>
+    axios.post(
+      `${API_URL}/auth/logout`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) ?? ''}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 5000
+      }
+    ).catch(() => {}),
+  refresh: (refreshToken: string) =>
+    api.post<AuthTokens>('/auth/refresh', { refreshToken })
+}
+
+// Users
+export const usersApi = {
+  me: () => api.get('/users/me'),
+  updateMe: (data: Partial<{ firstName: string; lastName: string; email: string }>) =>
+    api.patch('/users/me', data),
+  uploadAvatar: (file: File) => {
+    const form = new FormData()
+    form.append('avatar', file)
+    return api.post('/attachments/avatar', form, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  }
+}
+
+// Conversations
+export const conversationsApi = {
+  list: () => api.get('/conversations'),
+  createDm: (userId: string) => api.post('/conversations/dm', { userId }),
+  createGroup: (name: string, userIds: string[]) =>
+    api.post('/conversations/group', { name, userIds })
+}
+
+// Messages
+export interface AttachmentInput {
+  storageKey: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  width?: number
+  height?: number
+}
+
+export const messagesApi = {
+  list: (convId: string, before?: string) =>
+    api.get(`/messages/${convId}`, { params: before ? { before } : {} }),
+  send: (
+    convId: string,
+    content: string,
+    clientMsgId: string,
+    opts?: { type?: 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO'; attachments?: AttachmentInput[] }
+  ) =>
+    api.post(`/messages/${convId}`, {
+      content,
+      clientMsgId,
+      type: opts?.type ?? 'TEXT',
+      ...(opts?.attachments ? { attachments: opts.attachments } : {})
+    }),
+  delete: (convId: string, messageId: string) =>
+    api.delete(`/messages/${convId}/${messageId}`)
+}
+
+// Attachments — R3: stream via backend (BUKAN presigned URL)
+export const attachmentsApi = {
+  getFile: async (attachmentId: string): Promise<string> => {
+    const res = await api.get(`/attachments/file/${attachmentId}`, {
+      responseType: 'blob'
+    })
+    return URL.createObjectURL(res.data)
+  },
+  // Upload file mentah ke conversation tertentu — balikan dipakai sebagai
+  // entri attachments[] saat kirim pesan (messagesApi.send).
+  upload: async (conversationId: string, file: File): Promise<AttachmentInput> => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await api.post(`/attachments/upload/${conversationId}`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return res.data
+  }
+}
+
+export default api
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    isReactiveRefreshing = false
+    refreshQueue = []
+  })
+}
