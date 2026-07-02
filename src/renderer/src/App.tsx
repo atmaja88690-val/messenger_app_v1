@@ -4,12 +4,14 @@ import { useAuthStore } from './stores/auth.store'
 import Sidebar from './components/chat/Sidebar'
 import ChatArea from './components/chat/ChatArea'
 import NewUserDialog from './components/users/NewUserDialog'
+import SettingsDialog from './components/settings/SettingsDialog'
 
 function App() {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
   const bootstrapped = useRef(false)
   const [showNewUser, setShowNewUser] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     if (bootstrapped.current) return
@@ -25,6 +27,11 @@ function App() {
   // listener tidak menumpuk saat HMR (pola sama dengan ws.service).
   useEffect(() => {
     const unsubscribe = window.api.onNewUser(() => setShowNewUser(true))
+    return unsubscribe
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = window.api.onSettings(() => setShowSettings(true))
     return unsubscribe
   }, [])
 
@@ -58,6 +65,7 @@ function App() {
       </div>
 
       {showNewUser && <NewUserDialog onClose={() => setShowNewUser(false)} />}
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   )
 }
