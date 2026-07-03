@@ -13,3 +13,8 @@ export const REFRESH_KEY = 'bsi_refresh_token'
 // UTANG TEKNIS: avatar lewat path /minio/ (bug SignatureDoesNotMatch yg sama).
 // Wajib blob-fetch + auth, jangan <img src> langsung. Tangani saat avatar dikerjakan.
 export const AVATAR_BASE = 'https://chat.bsilongevity.com/minio/bsichat-avatars'
+
+// Notifikasi (fitur Options — panel Notifications): toggle disimpan renderer-only,
+// tidak ada pihak main process yang butuh tahu nilainya (beda dgn downloadDir/openAtLogin).
+export const NOTIF_ENABLED_KEY = 'bsi_notif_enabled'
+export const NOTIF_SOUND_KEY = 'bsi_notif_sound'

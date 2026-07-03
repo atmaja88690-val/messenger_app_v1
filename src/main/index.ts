@@ -234,6 +234,15 @@ app.whenReady().then(() => {
     return { canceled: false, path: result.filePaths[0] }
   })
 
+  // window:focus -- dipanggil renderer saat toast notifikasi diklik.
+  // Restore dulu kalau minimized, baru show+focus (urutan ini wajib di Windows).
+  ipcMain.handle('window:focus', () => {
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  })
+
   buildMenu()
   createWindow()
 

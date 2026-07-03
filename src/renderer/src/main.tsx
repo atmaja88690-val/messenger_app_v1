@@ -4,6 +4,9 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
 import { router } from './config/router'
+// Registrasi listener notifikasi (level-modul, lihat notification.service.ts).
+// Diimpor di sini supaya aktif sejak app boot, terlepas dari status login.
+import './services/notification.service'
 
 const queryClient = new QueryClient({
   defaultOptions: {

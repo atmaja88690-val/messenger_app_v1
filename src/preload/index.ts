@@ -39,7 +39,9 @@ const api = {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch: { downloadDir?: string; openAtLogin?: boolean }) =>
     ipcRenderer.invoke('settings:set', patch),
-  pickDownloadFolder: () => ipcRenderer.invoke('settings:pickFolder')
+  pickDownloadFolder: () => ipcRenderer.invoke('settings:pickFolder'),
+  // Dipanggil dari notification.service.ts saat toast diklik: fokuskan window OS.
+  focusWindow: () => ipcRenderer.invoke('window:focus')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

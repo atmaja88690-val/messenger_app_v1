@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { isEnabled } from '../../services/notification.service'
+import { NOTIF_ENABLED_KEY, NOTIF_SOUND_KEY } from '../../config/constants'
 
 interface Settings {
   downloadDir: string | null
@@ -14,6 +16,8 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notifEnabled, setNotifEnabled] = useState(() => isEnabled(NOTIF_ENABLED_KEY))
+  const [notifSound, setNotifSound] = useState(() => isEnabled(NOTIF_SOUND_KEY))
 
   useEffect(() => {
     window.api.getSettings().then((s) => {
@@ -32,6 +36,8 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
   const handleSave = async () => {
     setSaving(true)
     setError(null)
+    localStorage.setItem(NOTIF_ENABLED_KEY, String(notifEnabled))
+    localStorage.setItem(NOTIF_SOUND_KEY, String(notifSound))
     const result = await window.api.setSettings({ ...settings, downloadDir: settings.downloadDir ?? undefined })
     setSaving(false)
     if (result.ok) {
@@ -78,6 +84,37 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
               <label htmlFor="openAtLogin" className="text-gray-300 text-sm">
                 Open at login
               </label>
+            </div>
+
+            <div className="border-t border-gray-700 pt-4 space-y-3">
+              <p className="text-gray-300 text-sm font-medium">Notifications</p>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="notifEnabled"
+                  checked={notifEnabled}
+                  onChange={(e) => setNotifEnabled(e.target.checked)}
+                  className="w-4 h-4 accent-blue-500"
+                />
+                <label htmlFor="notifEnabled" className="text-gray-300 text-sm">
+                  Show notifications for new messages
+                </label>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="notifSound"
+                  checked={notifSound}
+                  disabled={!notifEnabled}
+                  onChange={(e) => setNotifSound(e.target.checked)}
+                  className="w-4 h-4 accent-blue-500 disabled:opacity-40"
+                />
+                <label htmlFor="notifSound" className="text-gray-300 text-sm">
+                  Play sound
+                </label>
+              </div>
             </div>
 
             {error && <p className="text-red-400 text-sm">{error}</p>}
