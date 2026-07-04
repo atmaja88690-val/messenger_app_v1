@@ -1,12 +1,17 @@
 import { useEffect } from 'react'
 import { useChatStore } from '../../stores/chat.store'
 import { useAuthStore } from '../../stores/auth.store'
-import type { Conversation } from '../../types'
+import type { Conversation, ConversationMember } from '../../types'
+import Avatar from './Avatar'
 
 function convName(c: Conversation, myId?: string): string {
   if (c.title) return c.title
   const other = c.members.find((m) => m.userId !== myId)
   return other?.user.displayName ?? other?.user.username ?? 'Conversation'
+}
+
+function otherMember(c: Conversation, myId?: string): ConversationMember | undefined {
+  return c.members.find((m) => m.userId !== myId)
 }
 
 function initials(name: string): string {
@@ -34,6 +39,7 @@ export default function Sidebar() {
         {conversations.map((c) => {
           const name = convName(c, myId)
           const active = c.id === activeId
+          const otherM = c.type === 'DIRECT' ? otherMember(c, myId) : undefined
           return (
             <button
               key={c.id}
@@ -42,9 +48,13 @@ export default function Sidebar() {
                 active ? 'bg-gray-700' : ''
               }`}
             >
-              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                {initials(name)}
-              </div>
+              {otherM ? (
+                <Avatar userId={otherM.userId} name={name} className="w-10 h-10 rounded-full flex-shrink-0" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                  {initials(name)}
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="text-white text-sm font-medium truncate">{name}</div>
                 <div className="text-gray-400 text-xs truncate">

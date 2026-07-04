@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 import { API_URL, TOKEN_KEY, REFRESH_KEY } from '../config/constants'
-import type { LoginResponse, AuthTokens } from '../types'
+import type { LoginResponse, AuthTokens, UserStatus, User } from '../types'
 import {
   scheduleProactiveRefresh,
   clearProactiveRefresh,
@@ -170,9 +170,21 @@ export const authApi = {
 
 // Users
 export const usersApi = {
-  me: () => api.get('/users/me'),
-  updateMe: (data: Partial<{ firstName: string; lastName: string; email: string }>) =>
-    api.patch('/users/me', data),
+  me: () => api.get<{ user: User }>('/users/me'),
+  // Field PERSIS sesuai PATCH /users/me backend (Zod-style validation di
+  // users.routes.ts) -- BUKAN mengikuti interface User frontend yang lebih luas.
+  // email SENGAJA TIDAK ADA -- backend tidak menerimanya di endpoint ini.
+  // String kosong pada field opsional akan MENGHAPUS nilai (backend: trim().slice() || null).
+  updateMe: (data: Partial<{
+    displayName: string
+    status: UserStatus
+    firstName: string
+    lastName: string
+    nickname: string
+    phone: string
+    jobTitle: string
+    jobDepartment: string
+  }>) => api.patch('/users/me', data),
   uploadAvatar: (file: File) => {
     const form = new FormData()
     form.append('avatar', file)
@@ -226,6 +238,23 @@ export const attachmentsApi = {
       responseType: 'blob'
     })
     return URL.createObjectURL(res.data)
+  },
+  // Avatar -- R3 sama seperti getFile, tapi 404 (user belum punya avatar) BUKAN error;
+  // dikembalikan sebagai null supaya pemanggil bisa fallback ke inisial huruf tanpa try/catch.
+  // JANGAN di-cache global seperti blobCache di AttachmentImage.tsx -- avatarKey backend
+  // deterministik per-user (avatars/{userId}.{ext}), jadi cache permanen bisa sajikan
+  // avatar basi setelah user ganti foto. Cleanup blob URL jadi tanggung jawab komponen.
+  getAvatar: async (userId: string): Promise<string | null> => {
+    try {
+      const res = await api.get(`/attachments/avatar/${userId}`, {
+        responseType: 'blob'
+      })
+      return URL.createObjectURL(res.data)
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 404) return null
+      throw err
+    }
   },
   // Upload file mentah ke conversation tertentu — balikan dipakai sebagai
   // entri attachments[] saat kirim pesan (messagesApi.send).
