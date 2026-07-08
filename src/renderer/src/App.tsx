@@ -13,6 +13,7 @@ function App() {
   const bootstrapped = useRef(false)
   const [showNewUser, setShowNewUser] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showPanel, setShowPanel] = useState(true)
 
   useEffect(() => {
     if (bootstrapped.current) return
@@ -62,8 +63,8 @@ function App() {
       </div>
       <div className="flex-1 flex min-h-0">
         <Sidebar onOpenSettings={() => setShowSettings(true)} />
-        <ChatArea />
-        <ContactInfoPanel />
+        <ChatArea onOpenPanel={() => setShowPanel(true)} panelOpen={showPanel} />
+        {showPanel && <ContactInfoPanel onClose={() => setShowPanel(false)} />}
       </div>
 
       {showNewUser && <NewUserDialog onClose={() => setShowNewUser(false)} />}

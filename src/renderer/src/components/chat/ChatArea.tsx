@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { useChatStore } from '../../stores/chat.store'
 import { useAuthStore } from '../../stores/auth.store'
 import AttachmentImage from './AttachmentImage'
+import Avatar from './Avatar'
 import type { Message } from '../../types'
 
 function formatDateSeparator(iso: string): string {
@@ -108,8 +109,8 @@ function TextContextMenu({
   )
 }
 
-export default function ChatArea() {
-  const { activeId, messages, sendText, sendImage, loadingMsgs, markRead, readCursors, deleteMessage } = useChatStore()
+export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () => void; panelOpen?: boolean }) {
+  const { conversations, activeId, messages, sendText, sendImage, loadingMsgs, markRead, readCursors, deleteMessage } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
   const [text, setText] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -192,9 +193,46 @@ export default function ChatArea() {
   }
 
   let lastDay = ''
+  const activeConv = conversations.find((c) => c.id === activeId)
+  const headPartner = activeConv && activeConv.type === 'DIRECT'
+    ? activeConv.members.find((m) => m.userId !== myId)?.user
+    : undefined
+  const headName = activeConv?.title || headPartner?.displayName || headPartner?.username || 'Conversation'
+  const headStatus = headPartner?.status
+  const headOnline = headStatus === 'AVAILABLE'
 
   return (
     <div className="flex-1 flex flex-col bg-gray-900 min-h-0">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800 flex-shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {headPartner?.id ? (
+            <Avatar userId={headPartner.id} name={headName} className="w-8 h-8 rounded-full flex-shrink-0" />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+              {headName.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0">
+            <div className="text-white text-sm font-medium truncate">{headName}</div>
+            {headStatus && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <span className={`w-1.5 h-1.5 rounded-full ${headOnline ? 'bg-green-500' : 'bg-gray-500'}`} />
+                {headOnline ? 'Online' : 'Offline'}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-4 text-gray-500">
+          <svg className="opacity-40 cursor-default" xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m22 8-6 4 6 4V8Z" /><rect width="14" height="12" x="2" y="6" rx="2" /></svg>
+          <svg className="opacity-40 cursor-default" xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 3h6v6" /><path d="M9 21H3v-6" /><path d="M21 3l-7 7" /><path d="M3 21l7-7" /></svg>
+          <svg className="opacity-40 cursor-default" xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /></svg>
+          {!panelOpen && (
+            <button type="button" onClick={() => onOpenPanel?.()} aria-label="Show contact info" className="hover:text-white transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 4-6 8-6s8 2 8 6" /></svg>
+            </button>
+          )}
+        </div>
+      </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-1.5">
         {loadingMsgs && <div className="text-gray-500 text-sm">Loading messages...</div>}
         {list.map((m: Message) => {
