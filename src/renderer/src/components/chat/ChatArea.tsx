@@ -3,6 +3,7 @@ import { useChatStore } from '../../stores/chat.store'
 import { useAuthStore } from '../../stores/auth.store'
 import AttachmentImage from './AttachmentImage'
 import Avatar from './Avatar'
+import chatPattern from '../../assets/chat-pattern.svg'
 import type { Message } from '../../types'
 
 function formatDateSeparator(iso: string): string {
@@ -233,7 +234,10 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
           )}
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-1.5">
+      <div
+        className="flex-1 overflow-y-auto p-4 space-y-1.5"
+        style={{ backgroundColor: '#eef3f7', backgroundImage: `url(${chatPattern})`, backgroundRepeat: 'repeat' }}
+      >
         {loadingMsgs && <div className="text-gray-500 text-sm">Loading messages...</div>}
         {list.map((m: Message) => {
           const mine = m.senderId === myId
