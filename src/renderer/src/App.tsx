@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useAuthStore } from './stores/auth.store'
 import Sidebar from './components/chat/Sidebar'
 import ChatArea from './components/chat/ChatArea'
+import ContactInfoPanel from './components/chat/ContactInfoPanel'
 import NewUserDialog from './components/users/NewUserDialog'
 import SettingsDialog from './components/settings/SettingsDialog'
 
@@ -62,6 +63,7 @@ function App() {
       <div className="flex-1 flex min-h-0">
         <Sidebar onOpenSettings={() => setShowSettings(true)} />
         <ChatArea />
+        <ContactInfoPanel />
       </div>
 
       {showNewUser && <NewUserDialog onClose={() => setShowNewUser(false)} />}
