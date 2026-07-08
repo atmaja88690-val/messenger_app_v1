@@ -202,8 +202,8 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
   const headOnline = headStatus === 'AVAILABLE'
 
   return (
-    <div className="flex-1 flex flex-col bg-gray-900 min-h-0">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800 flex-shrink-0">
+    <div className="flex-1 flex flex-col bg-white min-h-0">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-white flex-shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
           {headPartner?.id ? (
             <Avatar userId={headPartner.id} name={headName} className="w-8 h-8 rounded-full flex-shrink-0" />
@@ -213,7 +213,7 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
             </div>
           )}
           <div className="min-w-0">
-            <div className="text-white text-sm font-medium truncate">{headName}</div>
+            <div className="text-gray-900 text-sm font-medium truncate">{headName}</div>
             {headStatus && (
               <div className="flex items-center gap-1.5 text-xs text-gray-400">
                 <span className={`w-1.5 h-1.5 rounded-full ${headOnline ? 'bg-green-500' : 'bg-gray-500'}`} />
@@ -245,14 +245,14 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
             <div key={m.id}>
               {showDate && (
                 <div className="flex justify-center my-3">
-                  <span className="px-3 py-1 bg-gray-800 text-gray-400 text-xs rounded-full">
+                  <span className="px-3 py-1 bg-gray-100 text-gray-500 text-xs rounded-full">
                     {formatDateSeparator(m.createdAt)}
                   </span>
                 </div>
               )}
               <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[70%] ${hasImage ? 'p-1.5' : 'px-3 py-2'} rounded-2xl ${mine ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-100'}`}
+                  className={`max-w-[70%] ${hasImage ? 'p-1.5' : 'px-3 py-2'} rounded-2xl ${mine ? 'bg-[#e5fbd0] text-gray-900' : 'bg-white text-gray-900 border border-gray-200'}`}
                   onContextMenu={(e) => openTextMenu(e, m)}
                 >
                   {hasImage && (
@@ -273,7 +273,7 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
                       {m.body}
                     </div>
                   )}
-                  <div className={`text-[10px] mt-0.5 flex items-center justify-end gap-1 ${hasImage ? 'px-1.5 pb-0.5' : ''} ${mine ? 'text-blue-200' : 'text-gray-400'}`}>
+                  <div className={`text-[10px] mt-0.5 flex items-center justify-end gap-1 ${hasImage ? 'px-1.5 pb-0.5' : ''} ${mine ? 'text-green-700' : 'text-gray-400'}`}>
                     {formatTime(m.createdAt)}
                     {mine && <ReadTicks message={m} readUpToSeq={activeId ? readCursors[activeId] : undefined} />}
                   </div>
@@ -296,12 +296,12 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
         />
       )}
 
-      <div className="p-3 border-t border-gray-700 flex gap-2 flex-shrink-0 items-center">
+      <div className="p-3 border-t border-gray-200 bg-white flex gap-2 flex-shrink-0 items-center">
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
         <button
           onClick={handlePickFile}
           title="Send image"
-          className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded-full text-gray-300 transition-colors"
+          className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full text-gray-500 transition-colors"
         >
           📎
         </button>
@@ -310,12 +310,12 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           placeholder="Type a message..."
-          className="flex-1 px-4 py-2.5 bg-gray-700 text-white rounded-full border border-gray-600 focus:outline-none focus:border-blue-500 placeholder-gray-500"
+          className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-900 rounded-full border border-transparent focus:outline-none focus:border-[#4aa3df] focus:bg-white placeholder-gray-400"
         />
         <button
           onClick={handleSend}
           disabled={!text.trim()}
-          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 text-white font-semibold rounded-full transition-colors"
+          className="px-5 py-2.5 bg-[#4aa3df] hover:bg-[#3a92ce] disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-full transition-colors"
         >
           Send
         </button>
