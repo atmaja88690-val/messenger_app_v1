@@ -21,6 +21,7 @@ function initials(name: string): string {
 export default function Sidebar() {
   const { conversations, activeId, loadConversations, selectConversation, loadingConvos } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
+  const me = useAuthStore((s) => s.user)
 
   useEffect(() => {
     loadConversations()
@@ -28,8 +29,23 @@ export default function Sidebar() {
 
   return (
     <div className="w-72 flex-shrink-0 border-r border-gray-700 bg-gray-800 flex flex-col">
-      <div className="px-4 py-3 border-b border-gray-700 text-sm font-semibold text-gray-300">
-        Chats
+      <div className="px-3 py-3 border-b border-gray-700 flex items-center gap-3">
+        <div className="relative flex-shrink-0">
+          <Avatar userId={me?.id ?? ''} name={me?.displayName || me?.username || 'Saya'} className="w-9 h-9 rounded-full flex-shrink-0" />
+          <span className={`absolute -right-0.5 -bottom-0.5 w-3 h-3 rounded-full border-2 border-gray-800 ${
+            (me?.status ?? 'AVAILABLE') === 'AVAILABLE' ? 'bg-green-500'
+            : (me?.status === 'AWAY' ? 'bg-yellow-500'
+            : (me?.status === 'DND' ? 'bg-red-500' : 'bg-gray-500'))
+          }`} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-white text-sm font-medium truncate">{me?.displayName || me?.username || 'Saya'}</div>
+          <div className="text-gray-400 text-xs truncate">{
+            (me?.status ?? 'AVAILABLE') === 'AVAILABLE' ? 'Available'
+            : (me?.status === 'AWAY' ? 'Away'
+            : (me?.status === 'DND' ? 'Do not disturb' : 'Offline'))
+          }</div>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto">
         {loadingConvos && <div className="p-4 text-gray-500 text-sm">Loading...</div>}
