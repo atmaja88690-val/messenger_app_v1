@@ -60,7 +60,7 @@ function App() {
         </div>
       </div>
       <div className="flex-1 flex min-h-0">
-        <Sidebar />
+        <Sidebar onOpenSettings={() => setShowSettings(true)} />
         <ChatArea />
       </div>
 
