@@ -76,7 +76,13 @@ export default function Sidebar({ onOpenSettings }: { onOpenSettings?: () => voi
     <div className="w-72 flex-shrink-0 border-r border-gray-700 bg-gray-800 flex flex-col">
       <div className="px-3 py-3 border-b border-gray-700 flex items-center gap-3">
         <div className="relative flex-shrink-0">
-          <Avatar userId={me?.id ?? ''} name={me?.displayName || me?.username || 'Saya'} className="w-9 h-9 rounded-full flex-shrink-0" />
+          {me?.id ? (
+            <Avatar userId={me.id} name={me.displayName || me.username || 'Saya'} className="w-9 h-9 rounded-full flex-shrink-0" />
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+              {initials(me?.displayName || me?.username || 'S')}
+            </div>
+          )}
           <span className={`absolute -right-0.5 -bottom-0.5 w-3 h-3 rounded-full border-2 border-gray-800 ${
             (me?.status ?? 'AVAILABLE') === 'AVAILABLE' ? 'bg-green-500'
             : (me?.status === 'AWAY' ? 'bg-yellow-500'
