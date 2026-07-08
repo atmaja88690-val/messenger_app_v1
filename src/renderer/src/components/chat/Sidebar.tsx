@@ -22,10 +22,41 @@ export default function Sidebar({ onOpenSettings }: { onOpenSettings?: () => voi
   const { conversations, activeId, loadConversations, selectConversation, loadingConvos } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
   const me = useAuthStore((s) => s.user)
+  const directConvos = conversations.filter((c) => c.type === 'DIRECT')
+  const groupConvos = conversations.filter((c) => c.type !== 'DIRECT')
 
   useEffect(() => {
     loadConversations()
   }, [])
+
+  const renderItem = (c: Conversation) => {
+    const name = convName(c, myId)
+    const active = c.id === activeId
+    const otherM = c.type === 'DIRECT' ? otherMember(c, myId) : undefined
+    return (
+      <button
+        key={c.id}
+        onClick={() => selectConversation(c.id)}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-700/50 transition-colors ${
+          active ? 'bg-gray-700' : ''
+        }`}
+      >
+        {otherM ? (
+          <Avatar userId={otherM.userId} name={name} className="w-10 h-10 rounded-full flex-shrink-0" />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+            {initials(name)}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="text-white text-sm font-medium truncate">{name}</div>
+          <div className="text-gray-400 text-xs truncate">
+            {c.lastMessage?.body ?? 'No messages yet'}
+          </div>
+        </div>
+      </button>
+    )
+  }
 
   return (
     <div className="w-72 flex-shrink-0 border-r border-gray-700 bg-gray-800 flex flex-col">
@@ -65,34 +96,18 @@ export default function Sidebar({ onOpenSettings }: { onOpenSettings?: () => voi
         {!loadingConvos && conversations.length === 0 && (
           <div className="p-4 text-gray-500 text-sm">No conversations yet</div>
         )}
-        {conversations.map((c) => {
-          const name = convName(c, myId)
-          const active = c.id === activeId
-          const otherM = c.type === 'DIRECT' ? otherMember(c, myId) : undefined
-          return (
-            <button
-              key={c.id}
-              onClick={() => selectConversation(c.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-700/50 transition-colors ${
-                active ? 'bg-gray-700' : ''
-              }`}
-            >
-              {otherM ? (
-                <Avatar userId={otherM.userId} name={name} className="w-10 h-10 rounded-full flex-shrink-0" />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                  {initials(name)}
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="text-white text-sm font-medium truncate">{name}</div>
-                <div className="text-gray-400 text-xs truncate">
-                  {c.lastMessage?.body ?? 'No messages yet'}
-                </div>
-              </div>
-            </button>
-          )
-        })}
+        {directConvos.length > 0 && (
+          <div className="px-3 pt-3 pb-1 text-xs font-medium text-gray-500 uppercase tracking-wide">
+            private
+          </div>
+        )}
+        {directConvos.map(renderItem)}
+        {groupConvos.length > 0 && (
+          <div className="px-3 pt-3 pb-1 text-xs font-medium text-gray-500 uppercase tracking-wide">
+            groups
+          </div>
+        )}
+        {groupConvos.map(renderItem)}
       </div>
     </div>
   )
