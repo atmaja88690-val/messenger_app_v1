@@ -194,6 +194,25 @@ export const usersApi = {
   }
 }
 
+// Admin — semua route di-guard requireAdmin() di backend.
+// Frontend guard hanya untuk UX; backend tetap penentu keamanan.
+export const adminApi = {
+  listUsers: (params?: { page?: number; limit?: number; search?: string }) =>
+    api.get('/admin/users', { params }),
+  stats: () => api.get('/admin/stats'),
+  activate: (id: string) => api.patch(`/admin/users/${id}/activate`),
+  deactivate: (id: string) => api.patch(`/admin/users/${id}/deactivate`),
+  setAdmin: (id: string, isAdmin: boolean) =>
+    api.patch(`/admin/users/${id}/set-admin`, { isAdmin }),
+  createUser: (data: { username: string; displayName: string; password: string; email?: string }) =>
+    api.post('/admin/users', data),
+  updateUser: (
+    id: string,
+    data: { displayName?: string; username?: string; email?: string | null }
+  ) => api.patch(`/admin/users/${id}`, data),
+  deleteUser: (id: string) => api.delete(`/admin/users/${id}`)
+}
+
 // Conversations
 export const conversationsApi = {
   list: () => api.get('/conversations'),
