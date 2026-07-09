@@ -236,7 +236,7 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
       </div>
       <div
         className="flex-1 overflow-y-auto p-4 space-y-1.5"
-        style={{ backgroundColor: '#eef3f7', backgroundImage: `url(${chatPattern})`, backgroundRepeat: 'repeat' }}
+        style={{ backgroundColor: '#d6e0ea', backgroundImage: `url(${chatPattern})`, backgroundRepeat: 'repeat' }}
       >
         {loadingMsgs && <div className="text-gray-500 text-sm">Loading messages...</div>}
         {list.map((m: Message) => {

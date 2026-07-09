@@ -14,6 +14,15 @@ function App() {
   const [showNewUser, setShowNewUser] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showPanel, setShowPanel] = useState(true)
+  const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 1100)
+
+  // Panel kanan auto-hide saat window sempit (<1100px) supaya 3 kolom tidak
+  // memaksa scroll horizontal. Listener di-cleanup agar tidak menumpuk saat HMR.
+  useEffect(() => {
+    const onResize = () => setIsNarrow(window.innerWidth < 1100)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   useEffect(() => {
     if (bootstrapped.current) return
@@ -63,8 +72,8 @@ function App() {
       </div>
       <div className="flex-1 flex min-h-0">
         <Sidebar onOpenSettings={() => setShowSettings(true)} />
-        <ChatArea onOpenPanel={() => setShowPanel(true)} panelOpen={showPanel} />
-        {showPanel && <ContactInfoPanel onClose={() => setShowPanel(false)} />}
+        <ChatArea onOpenPanel={() => setShowPanel(true)} panelOpen={showPanel || isNarrow} />
+        {showPanel && !isNarrow && <ContactInfoPanel onClose={() => setShowPanel(false)} />}
       </div>
 
       {showNewUser && <NewUserDialog onClose={() => setShowNewUser(false)} />}
