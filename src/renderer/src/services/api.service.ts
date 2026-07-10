@@ -215,12 +215,22 @@ export const adminApi = {
     api.patch(`/admin/users/${id}/password`, { password })
 }
 
+// Direktori user untuk memulai percakapan (bukan admin-only).
+// Backend hanya mengirim: id, username, displayName, avatarKey, status.
+export const directoryApi = {
+  list: (search?: string) =>
+    api.get('/users', { params: search ? { search } : undefined })
+}
+
+
 // Conversations
 export const conversationsApi = {
   list: () => api.get('/conversations'),
-  createDm: (userId: string) => api.post('/conversations/dm', { userId }),
-  createGroup: (name: string, userIds: string[]) =>
-    api.post('/conversations/group', { name, userIds })
+  // Kontrak backend (conversations.routes.ts): { targetUserId } dan { title, memberIds }.
+  // Nama field lama ({ userId }, { name, userIds }) tidak cocok -> selalu 400.
+  createDm: (targetUserId: string) => api.post('/conversations/dm', { targetUserId }),
+  createGroup: (title: string, memberIds: string[]) =>
+    api.post('/conversations/group', { title, memberIds })
 }
 
 // Messages
