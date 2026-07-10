@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
-import type { Conversation, Message, Attachment } from '../types'
+import type { Conversation, Message, Attachment, UserStatus } from '../types'
 import { conversationsApi, messagesApi, attachmentsApi } from '../services/api.service'
 import { wsService } from '../services/ws.service'
 import { useAuthStore } from './auth.store'
@@ -21,6 +21,7 @@ interface ChatState {
   readCursors: Record<string, string>  // conversationId -> seq terakhir yg dibaca LAWAN bicara
   _onReceipt: (p: { userId: string; seq: string; conversationId: string }) => void
   _onNewMessage: (m: Message) => void
+  _onPresence: (p: { userId: string; status: UserStatus }) => void
   _onAck: (p: { clientMsgId: string; id: string; seq: string; conversationId: string }) => void
 }
 
@@ -162,8 +163,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // Hindari duplikat: kalau clientMsgId sudah ada (pesan sendiri), skip
       if (m.clientMsgId && existing.some((x) => x.clientMsgId === m.clientMsgId)) return s
       if (existing.some((x) => x.id === m.id)) return s
-      return { messages: { ...s.messages, [m.conversationId]: [...existing, m] } }
+
+      // Preview sidebar: set lastMessage + naikkan percakapan ke atas,
+      // supaya daftar ikut hidup tanpa reload (perilaku Telegram).
+      const idx = s.conversations.findIndex((c) => c.id === m.conversationId)
+      let convos = s.conversations
+      if (idx !== -1) {
+        const updated = { ...convos[idx], lastMessage: m }
+        convos = [updated, ...convos.slice(0, idx), ...convos.slice(idx + 1)]
+      }
+
+      return {
+        messages: { ...s.messages, [m.conversationId]: [...existing, m] },
+        conversations: convos
+      }
     })
+  },
+
+  // Presence: backend publish { userId, status } ke channel 'presence' saat
+  // WS connect / set-status / disconnect. Update status partner di daftar
+  // percakapan; kalau yang berubah diri sendiri, update juga auth store.
+  _onPresence: (p) => {
+    set((s) => ({
+      conversations: s.conversations.map((c) => ({
+        ...c,
+        members: c.members.map((mem) =>
+          mem.userId === p.userId ? { ...mem, user: { ...mem.user, status: p.status } } : mem
+        )
+      }))
+    }))
+    const auth = useAuthStore.getState()
+    if (auth.user?.id === p.userId) {
+      useAuthStore.setState({ user: { ...auth.user, status: p.status } })
+    }
   },
 
   _onAck: (p) => {
@@ -204,6 +236,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
 // Wire WS events sekali (modul-level)
 wsService.on('new_message', (p) => useChatStore.getState()._onNewMessage(p as Message))
+wsService.on('presence', (p) =>
+  useChatStore.getState()._onPresence(p as { userId: string; status: UserStatus })
+)
 wsService.on('message_ack', (p) =>
   useChatStore.getState()._onAck(p as { clientMsgId: string; id: string; seq: string; conversationId: string })
 )

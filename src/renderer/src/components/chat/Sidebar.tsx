@@ -135,7 +135,7 @@ export default function Sidebar({ onOpenSettings }: { onOpenSettings?: () => voi
             <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>
           </button>
           {historyOpen && (
-            <div className="absolute right-0 top-full mt-1 w-56 max-h-80 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+            <div className="absolute right-0 top-full mt-1 w-52 max-w-[calc(100vw-1rem)] max-h-80 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg z-30 py-1">
               <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide">recent rooms</div>
               {recentRooms.length === 0 && (
                 <div className="px-3 py-2 text-gray-400 text-sm">No rooms yet</div>
