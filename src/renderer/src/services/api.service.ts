@@ -210,7 +210,9 @@ export const adminApi = {
     id: string,
     data: { displayName?: string; username?: string; email?: string | null }
   ) => api.patch(`/admin/users/${id}`, data),
-  deleteUser: (id: string) => api.delete(`/admin/users/${id}`)
+  deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
+  setPassword: (id: string, password: string) =>
+    api.patch(`/admin/users/${id}/password`, { password })
 }
 
 // Conversations

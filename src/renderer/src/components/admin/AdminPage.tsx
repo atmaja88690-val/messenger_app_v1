@@ -37,6 +37,7 @@ function errMsg(e: any, fallback: string): string {
 export default function AdminPage() {
   const navigate = useNavigate()
   const me = useAuthStore((s) => s.user)
+  const logout = useAuthStore((s) => s.logout)
   const [users, setUsers] = useState<AdminUser[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -57,6 +58,9 @@ export default function AdminPage() {
   const [eDisplayName, setEDisplayName] = useState('')
   const [eEmail, setEEmail] = useState('')
 
+  const [pwUser, setPwUser] = useState<AdminUser | null>(null)
+  const [pw1, setPw1] = useState('')
+  const [pw2, setPw2] = useState('')
   const [delUser, setDelUser] = useState<AdminUser | null>(null)
   const [delConfirm, setDelConfirm] = useState('')
 
@@ -133,6 +137,24 @@ export default function AdminPage() {
       await adminApi.updateUser(editUser.id, payload)
       setEditUser(null); await refresh()
     } catch (e) { setError(errMsg(e, 'Gagal menyimpan')) } finally { setSaving(false) }
+  }
+
+  const submitPassword = async () => {
+    if (!pwUser || pw1.length < 8 || pw1 !== pw2) return
+    setSaving(true); setError(null)
+    const self = pwUser.id === me?.id
+    try {
+      await adminApi.setPassword(pwUser.id, pw1)
+      setPwUser(null); setPw1(''); setPw2('')
+      if (self) {
+        // Sesi sendiri sudah dicabut backend -> keluar eksplisit, jangan
+        // menunggu 401 memicu refresh-loop di interceptor.
+        await logout()
+        navigate({ to: '/login' })
+        return
+      }
+      await refresh()
+    } catch (e) { setError(errMsg(e, 'Gagal mengganti password')) } finally { setSaving(false) }
   }
 
   const submitDelete = async () => {
@@ -226,6 +248,7 @@ export default function AdminPage() {
                         <button disabled={self || deleted || busyId === u.id} onClick={() => openEdit(u)} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">Edit</button>
                         <button disabled={self || deleted || busyId === u.id} onClick={() => toggleActive(u)} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">{u.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button>
                         <button disabled={self || deleted || busyId === u.id} onClick={() => toggleAdmin(u)} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">{u.accountType === 'ADMIN' ? 'Cabut admin' : 'Jadikan admin'}</button>
+                        <button disabled={deleted || busyId === u.id} onClick={() => { setPwUser(u); setPw1(''); setPw2(''); setError(null) }} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">Password</button>
                         <button disabled={self || deleted || busyId === u.id} onClick={() => { setDelUser(u); setDelConfirm(''); setError(null) }} className="px-2.5 py-1 text-xs border border-red-200 rounded-md text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed">Hapus</button>
                       </div>
                     </td>
@@ -278,6 +301,31 @@ export default function AdminPage() {
             <div className="flex justify-end gap-2 mt-5">
               <button disabled={saving} onClick={() => setEditUser(null)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600">Batal</button>
               <button disabled={saving} onClick={submitEdit} className="px-4 py-1.5 text-sm bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg disabled:opacity-40">{saving ? 'Menyimpan...' : 'Simpan'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pwUser && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => !saving && setPwUser(null)}>
+          <div className="bg-white rounded-xl w-96 p-5" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-gray-900 mb-2">Ganti password</h2>
+            <p className="text-sm text-gray-600 mb-3">
+              Password baru untuk <b>{pwUser.displayName}</b>.{' '}
+              {pwUser.id === me?.id
+                ? <span className="text-red-600">Semua sesi Anda dicabut &mdash; Anda akan langsung ter-logout.</span>
+                : <>Semua sesinya dicabut; ia harus login ulang.</>}
+            </p>
+            <div className="flex flex-col gap-3">
+              <div><label className="text-xs text-gray-500">Password baru (min 8)</label><input type="password" value={pw1} onChange={(e) => setPw1(e.target.value)} className={inputCls} /></div>
+              <div><label className="text-xs text-gray-500">Ulangi password</label><input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} className={inputCls} /></div>
+            </div>
+            {pw1.length > 0 && pw1.length < 8 && <div className="mt-2 text-xs text-red-600">Minimal 8 karakter (sekarang {pw1.length})</div>}
+            {pw1.length >= 8 && pw2.length > 0 && pw1 !== pw2 && <div className="mt-2 text-xs text-red-600">Password tidak sama</div>}
+            {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
+            <div className="flex justify-end gap-2 mt-5">
+              <button disabled={saving} onClick={() => setPwUser(null)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600">Batal</button>
+              <button disabled={saving || pw1.length < 8 || pw1 !== pw2} onClick={submitPassword} className="px-4 py-1.5 text-sm bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg disabled:opacity-40">{saving ? 'Menyimpan...' : 'Simpan password'}</button>
             </div>
           </div>
         </div>
