@@ -64,6 +64,14 @@ function App() {
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-700 flex-shrink-0">
         <span className="font-semibold">BSI Messenger</span>
         <div className="flex items-center gap-3 text-sm text-gray-400">
+          {user?.accountType === 'ADMIN' && (
+            <button
+              onClick={() => navigate({ to: '/admin' })}
+              className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-md text-white"
+            >
+              Admin
+            </button>
+          )}
           <span>{user?.displayName ?? user?.username ?? '...'}</span>
           <button onClick={handleLogout} className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-md text-white">
             Log out
