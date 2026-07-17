@@ -136,7 +136,7 @@ export default function NewChatDialog({ onClose }: { onClose: () => void }) {
                 }`}
               >
                 <div className="relative flex-shrink-0">
-                  <Avatar userId={u.id} name={u.displayName} className="w-9 h-9 rounded-full" />
+                  <Avatar userId={u.id} name={u.displayName} avatarKey={u.avatarKey} className="w-9 h-9 rounded-full" />
                   <span className={`absolute -right-0.5 -bottom-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${DOT[u.status] ?? 'bg-gray-400'}`} />
                 </div>
                 <div className="min-w-0 flex-1">

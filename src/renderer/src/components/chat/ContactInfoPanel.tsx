@@ -73,7 +73,7 @@ export default function ContactInfoPanel({ onClose }: Props) {
       <div className="flex flex-col items-center px-5 pb-4">
         <div className="relative mb-3">
           {isDirect && avatarUserId ? (
-            <Avatar userId={avatarUserId} name={name} className="w-24 h-24 rounded-full flex-shrink-0" />
+            <Avatar userId={avatarUserId} name={name} avatarKey={partner?.avatarKey} className="w-24 h-24 rounded-full flex-shrink-0" />
           ) : (
             <div className="w-24 h-24 rounded-full bg-[#4aa3df] flex items-center justify-center text-white text-3xl font-semibold flex-shrink-0">
               {initials(name)}

@@ -5,6 +5,9 @@ interface AvatarProps {
   userId: string
   name: string
   className?: string
+  // null  = server sudah bilang user ini TIDAK punya avatar -> jangan fetch.
+  // undefined = pemanggil tidak tahu -> fetch seperti biasa (perilaku lama).
+  avatarKey?: string | null
 }
 
 function initials(name: string): string {
@@ -16,10 +19,17 @@ function initials(name: string): string {
 // avatarKey backend deterministik per-user (avatars/{userId}.{ext}), jadi cache
 // permanen bisa menyajikan foto basi setelah user ganti avatar. Di-fetch ulang
 // tiap mount, blob URL di-revoke saat unmount ATAU saat userId berganti.
-export default function Avatar({ userId, name, className }: AvatarProps) {
+export default function Avatar({ userId, name, className, avatarKey }: AvatarProps) {
   const [src, setSrc] = useState<string | null>(null)
 
   useEffect(() => {
+    // Skip fetch kalau sudah pasti tidak ada avatar: hemat request dan
+    // menghilangkan 404 yang mengotori console (menyamarkan error sungguhan).
+    if (avatarKey === null) {
+      setSrc(null)
+      return
+    }
+
     let cancelled = false
     let objectUrl: string | null = null
 
@@ -45,7 +55,7 @@ export default function Avatar({ userId, name, className }: AvatarProps) {
       // sebelum fetch avatar baru selesai.
       setSrc(null)
     }
-  }, [userId])
+  }, [userId, avatarKey])
 
   const base = className ?? 'w-10 h-10 rounded-full flex-shrink-0'
 

@@ -207,7 +207,7 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-white flex-shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
           {headPartner?.id ? (
-            <Avatar userId={headPartner.id} name={headName} className="w-8 h-8 rounded-full flex-shrink-0" />
+            <Avatar userId={headPartner.id} name={headName} avatarKey={headPartner.avatarKey} className="w-8 h-8 rounded-full flex-shrink-0" />
           ) : (
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
               {headName.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
