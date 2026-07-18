@@ -6,6 +6,7 @@ import ChatArea from './components/chat/ChatArea'
 import ContactInfoPanel from './components/chat/ContactInfoPanel'
 import NewUserDialog from './components/users/NewUserDialog'
 import SettingsDialog from './components/settings/SettingsDialog'
+import UserProfileDialog from './components/users/UserProfileDialog'
 
 function App() {
   const navigate = useNavigate()
@@ -13,6 +14,7 @@ function App() {
   const bootstrapped = useRef(false)
   const [showNewUser, setShowNewUser] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
   const [showPanel, setShowPanel] = useState(true)
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 1100)
 
@@ -43,6 +45,11 @@ function App() {
 
   useEffect(() => {
     const unsubscribe = window.api.onSettings(() => setShowSettings(true))
+    return unsubscribe
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = window.api.onMyProfile(() => setShowProfile(true))
     return unsubscribe
   }, [])
 
@@ -86,6 +93,7 @@ function App() {
 
       {showNewUser && <NewUserDialog onClose={() => setShowNewUser(false)} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
+      {showProfile && <UserProfileDialog onClose={() => setShowProfile(false)} />}
     </div>
   )
 }
