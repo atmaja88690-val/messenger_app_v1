@@ -18,3 +18,8 @@ export const AVATAR_BASE = 'https://chat.bsilongevity.com/minio/bsichat-avatars'
 // tidak ada pihak main process yang butuh tahu nilainya (beda dgn downloadDir/openAtLogin).
 export const NOTIF_ENABLED_KEY = 'bsi_notif_enabled'
 export const NOTIF_SOUND_KEY = 'bsi_notif_sound'
+
+// === App info (About dialog) — EDIT DI SINI saat rilis versi baru ===
+export const APP_NAME = 'BSI Messenger'
+export const APP_VERSION = '1.0.0'
+export const APP_COPYRIGHT = `© ${new Date().getFullYear()} BSI International. All rights reserved.`

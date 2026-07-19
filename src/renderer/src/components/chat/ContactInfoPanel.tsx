@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useChatStore } from '../../stores/chat.store'
 import { useAuthStore } from '../../stores/auth.store'
 import type { Conversation } from '../../types'
@@ -33,7 +32,6 @@ export default function ContactInfoPanel({ onClose }: Props) {
   const { conversations, activeId } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
   const active = conversations.find((c) => c.id === activeId)
-  const [nudgeHint, setNudgeHint] = useState(false)
 
   if (!active) {
     return (
@@ -50,10 +48,6 @@ export default function ContactInfoPanel({ onClose }: Props) {
   const avatarUserId = partner?.id
   const accountType = partner?.accountType
 
-  const handleNudge = () => {
-    setNudgeHint(true)
-    setTimeout(() => setNudgeHint(false), 2200)
-  }
 
   return (
     <div className="w-72 flex-shrink-0 border-l border-gray-200 bg-white flex flex-col overflow-y-auto">
@@ -96,15 +90,6 @@ export default function ContactInfoPanel({ onClose }: Props) {
           </svg>
           <span className="text-sm">User profile</span>
         </button>
-        <button type="button" onClick={handleNudge} className="flex items-center gap-3 px-2 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-          </svg>
-          <span className="text-sm">Send nudge</span>
-        </button>
-        {nudgeHint && (
-          <div className="px-2 text-xs text-gray-400">Nudge segera hadir</div>
-        )}
       </div>
 
       <div className="px-6 py-4 border-t border-gray-100 flex flex-col gap-4">

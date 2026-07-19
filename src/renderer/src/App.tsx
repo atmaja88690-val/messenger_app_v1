@@ -7,6 +7,7 @@ import ContactInfoPanel from './components/chat/ContactInfoPanel'
 import NewUserDialog from './components/users/NewUserDialog'
 import SettingsDialog from './components/settings/SettingsDialog'
 import UserProfileDialog from './components/users/UserProfileDialog'
+import AboutDialog from './components/settings/AboutDialog'
 
 function App() {
   const navigate = useNavigate()
@@ -15,6 +16,7 @@ function App() {
   const [showNewUser, setShowNewUser] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
+  const [showAbout, setShowAbout] = useState(false)
   const [showPanel, setShowPanel] = useState(true)
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 1100)
 
@@ -50,6 +52,11 @@ function App() {
 
   useEffect(() => {
     const unsubscribe = window.api.onMyProfile(() => setShowProfile(true))
+    return unsubscribe
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = window.api.onAbout(() => setShowAbout(true))
     return unsubscribe
   }, [])
 
@@ -94,6 +101,7 @@ function App() {
       {showNewUser && <NewUserDialog onClose={() => setShowNewUser(false)} />}
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
       {showProfile && <UserProfileDialog onClose={() => setShowProfile(false)} />}
+      {showAbout && <AboutDialog onClose={() => setShowAbout(false)} />}
     </div>
   )
 }

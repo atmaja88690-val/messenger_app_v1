@@ -224,9 +224,13 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
           </div>
         </div>
         <div className="flex items-center gap-4 text-gray-500">
+          {/* Kamera (video call) & grid view disembunyikan sesuai revisi UI -- kode dipertahankan untuk dikembalikan nanti
           <svg className="opacity-40 cursor-default" xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m22 8-6 4 6 4V8Z" /><rect width="14" height="12" x="2" y="6" rx="2" /></svg>
-          <svg className="opacity-40 cursor-default" xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 3h6v6" /><path d="M9 21H3v-6" /><path d="M21 3l-7 7" /><path d="M3 21l7-7" /></svg>
           <svg className="opacity-40 cursor-default" xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /></svg>
+          */}
+          <button type="button" onClick={() => { /* TODO: implement share screen */ }} aria-label="Share screen" className="hover:text-white transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v10" /><path d="m8 7 4-4 4 4" /><rect width="20" height="14" x="2" y="7" rx="2" ry="2" /></svg>
+          </button>
           {!panelOpen && (
             <button type="button" onClick={() => onOpenPanel?.()} aria-label="Show contact info" className="hover:text-white transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 4-6 8-6s8 2 8 6" /></svg>
