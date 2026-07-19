@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { isEnabled } from '../../services/notification.service'
-import { NOTIF_ENABLED_KEY, NOTIF_SOUND_KEY } from '../../config/constants'
+import { NOTIF_ENABLED_KEY, NOTIF_SOUND_KEY, SERVER_URL } from '../../config/constants'
 
 interface Settings {
   downloadDir: string | null
@@ -56,6 +56,14 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
           <p className="text-gray-400 text-sm">Loading...</p>
         ) : (
           <>
+            <div className="flex flex-col gap-1">
+              <label className="text-gray-300 text-sm">Server</label>
+              <input
+                readOnly
+                value={SERVER_URL}
+                className="bg-gray-900 text-gray-400 text-sm rounded px-3 py-1.5 outline-none cursor-not-allowed"
+              />
+            </div>
             <div className="flex flex-col gap-1">
               <label className="text-gray-300 text-sm">Download Folder</label>
               <div className="flex gap-2">

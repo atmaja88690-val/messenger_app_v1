@@ -23,3 +23,9 @@ export const NOTIF_SOUND_KEY = 'bsi_notif_sound'
 export const APP_NAME = 'BSI Messenger'
 export const APP_VERSION = '1.0.0'
 export const APP_COPYRIGHT = `© ${new Date().getFullYear()} BSI International. All rights reserved.`
+
+// URL server penuh untuk ditampilkan (read-only) di Settings.
+// Dev: origin Vite dev server (mis. http://localhost:5173). Prod: origin dari API_URL.
+export const SERVER_URL = DEV
+  ? location.origin
+  : new URL(API_URL).origin
