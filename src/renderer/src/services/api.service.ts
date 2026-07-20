@@ -184,7 +184,7 @@ export const usersApi = {
     phone: string
     jobTitle: string
     jobDepartment: string
-  }>) => api.patch('/users/me', data),
+  }>) => api.patch<{ user: User }>('/users/me', data),
   uploadAvatar: (file: File) => {
     const form = new FormData()
     form.append('avatar', file)
