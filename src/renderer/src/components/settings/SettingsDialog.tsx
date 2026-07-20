@@ -11,6 +11,14 @@ interface SettingsDialogProps {
   onClose: () => void
 }
 
+type Tab = 'general' | 'startup' | 'notifications'
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'startup', label: 'Startup' },
+  { id: 'notifications', label: 'Notifications' }
+]
+
 export default function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [settings, setSettings] = useState<Settings>({ downloadDir: null, openAtLogin: false })
   const [loading, setLoading] = useState(true)
@@ -18,6 +26,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [error, setError] = useState<string | null>(null)
   const [notifEnabled, setNotifEnabled] = useState(() => isEnabled(NOTIF_ENABLED_KEY))
   const [notifSound, setNotifSound] = useState(() => isEnabled(NOTIF_SOUND_KEY))
+  const [activeTab, setActiveTab] = useState<Tab>('general')
 
   useEffect(() => {
     window.api.getSettings().then((s) => {
@@ -49,85 +58,117 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-[420px] flex flex-col gap-4 shadow-xl">
-        <h2 className="text-white font-semibold text-lg">Settings</h2>
+      <div className="bg-gray-800 rounded-lg w-[640px] h-[420px] flex flex-col shadow-xl overflow-hidden">
+        <div className="px-6 pt-5 pb-3 border-b border-gray-700">
+          <h2 className="text-white font-semibold text-lg">Settings</h2>
+        </div>
 
         {loading ? (
-          <p className="text-gray-400 text-sm">Loading...</p>
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-gray-400 text-sm">Loading...</p>
+          </div>
         ) : (
           <>
-            <div className="flex flex-col gap-1">
-              <label className="text-gray-300 text-sm">Server</label>
-              <input
-                readOnly
-                value={SERVER_URL}
-                className="bg-gray-900 text-gray-400 text-sm rounded px-3 py-1.5 outline-none cursor-not-allowed"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-gray-300 text-sm">Download Folder</label>
-              <div className="flex gap-2">
-                <input
-                  readOnly
-                  value={settings.downloadDir ?? '(default)'}
-                  className="flex-1 bg-gray-700 text-white text-sm rounded px-3 py-1.5 outline-none"
-                />
-                <button
-                  onClick={handlePickFolder}
-                  className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded"
-                >
-                  Browse
-                </button>
+            <div className="flex-1 flex min-h-0">
+              {/* Sidebar navigasi kategori */}
+              <nav className="w-40 flex-shrink-0 border-r border-gray-700 py-3 flex flex-col gap-1">
+                {TABS.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setActiveTab(t.id)}
+                    className={`text-left px-4 py-2 text-sm transition-colors ${
+                      activeTab === t.id
+                        ? 'bg-gray-700 text-white border-l-2 border-blue-500'
+                        : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </nav>
+
+              {/* Panel konten sesuai tab aktif */}
+              <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+                {activeTab === 'general' && (
+                  <>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-gray-300 text-sm">Server</label>
+                      <input
+                        readOnly
+                        value={SERVER_URL}
+                        className="bg-gray-900 text-gray-400 text-sm rounded px-3 py-1.5 outline-none cursor-not-allowed"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-gray-300 text-sm">Download Folder</label>
+                      <div className="flex gap-2">
+                        <input
+                          readOnly
+                          value={settings.downloadDir ?? '(default)'}
+                          className="flex-1 bg-gray-700 text-white text-sm rounded px-3 py-1.5 outline-none"
+                        />
+                        <button
+                          onClick={handlePickFolder}
+                          className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded"
+                        >
+                          Browse
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {activeTab === 'startup' && (
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="openAtLogin"
+                      checked={settings.openAtLogin}
+                      onChange={(e) => setSettings((prev) => ({ ...prev, openAtLogin: e.target.checked }))}
+                      className="w-4 h-4 accent-blue-500"
+                    />
+                    <label htmlFor="openAtLogin" className="text-gray-300 text-sm">
+                      Open at login
+                    </label>
+                  </div>
+                )}
+
+                {activeTab === 'notifications' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="notifEnabled"
+                        checked={notifEnabled}
+                        onChange={(e) => setNotifEnabled(e.target.checked)}
+                        className="w-4 h-4 accent-blue-500"
+                      />
+                      <label htmlFor="notifEnabled" className="text-gray-300 text-sm">
+                        Show notifications for new messages
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="notifSound"
+                        checked={notifSound}
+                        disabled={!notifEnabled}
+                        onChange={(e) => setNotifSound(e.target.checked)}
+                        className="w-4 h-4 accent-blue-500 disabled:opacity-40"
+                      />
+                      <label htmlFor="notifSound" className="text-gray-300 text-sm">
+                        Play sound
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="openAtLogin"
-                checked={settings.openAtLogin}
-                onChange={(e) => setSettings((prev) => ({ ...prev, openAtLogin: e.target.checked }))}
-                className="w-4 h-4 accent-blue-500"
-              />
-              <label htmlFor="openAtLogin" className="text-gray-300 text-sm">
-                Open at login
-              </label>
-            </div>
-
-            <div className="border-t border-gray-700 pt-4 space-y-3">
-              <p className="text-gray-300 text-sm font-medium">Notifications</p>
-
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="notifEnabled"
-                  checked={notifEnabled}
-                  onChange={(e) => setNotifEnabled(e.target.checked)}
-                  className="w-4 h-4 accent-blue-500"
-                />
-                <label htmlFor="notifEnabled" className="text-gray-300 text-sm">
-                  Show notifications for new messages
-                </label>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="notifSound"
-                  checked={notifSound}
-                  disabled={!notifEnabled}
-                  onChange={(e) => setNotifSound(e.target.checked)}
-                  className="w-4 h-4 accent-blue-500 disabled:opacity-40"
-                />
-                <label htmlFor="notifSound" className="text-gray-300 text-sm">
-                  Play sound
-                </label>
-              </div>
-            </div>
-
-            {error && <p className="text-red-400 text-sm">{error}</p>}
-
-            <div className="flex justify-end gap-2 pt-2">
+            {/* Footer global */}
+            <div className="px-6 py-3 border-t border-gray-700 flex items-center justify-end gap-2">
+              {error && <p className="text-red-400 text-sm mr-auto">{error}</p>}
               <button
                 onClick={onClose}
                 className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded"
