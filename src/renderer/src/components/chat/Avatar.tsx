@@ -60,7 +60,16 @@ export default function Avatar({ userId, name, className, avatarKey }: AvatarPro
   const base = className ?? 'w-10 h-10 rounded-full flex-shrink-0'
 
   if (src) {
-    return <img src={src} alt={name} className={`${base} object-cover`} />
+    // onError: blob rusak / gambar gagal muat -> jatuhkan ke fallback inisial.
+    // (Backend kadang mengembalikan blob non-gambar untuk user tanpa avatar.)
+    return (
+      <img
+        src={src}
+        alt={name}
+        onError={() => setSrc(null)}
+        className={`${base} object-cover`}
+      />
+    )
   }
 
   return (
