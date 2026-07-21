@@ -4,6 +4,7 @@ import { useAuthStore } from './stores/auth.store'
 import Sidebar from './components/chat/Sidebar'
 import ChatArea from './components/chat/ChatArea'
 import ContactInfoPanel from './components/chat/ContactInfoPanel'
+import InboxSection from './components/inbox/InboxSection'
 import NewUserDialog from './components/users/NewUserDialog'
 import SettingsDialog from './components/settings/SettingsDialog'
 import UserProfileDialog from './components/users/UserProfileDialog'
@@ -113,6 +114,8 @@ function App() {
             <ChatArea onOpenPanel={() => setShowPanel(true)} panelOpen={showPanel || isNarrow} />
             {showPanel && !isNarrow && <ContactInfoPanel onClose={() => setShowPanel(false)} />}
           </>
+        ) : activeSection === 'inbox' ? (
+          <InboxSection />
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
             {activeSection[0].toUpperCase() + activeSection.slice(1)} — segera hadir
