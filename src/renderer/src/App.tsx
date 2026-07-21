@@ -17,6 +17,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
+  const [activeSection, setActiveSection] = useState<'chats' | 'inbox' | 'broadcast' | 'templates' | 'analytics'>('chats')
   const [showPanel, setShowPanel] = useState(true)
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 1100)
 
@@ -76,7 +77,20 @@ function App() {
   return (
     <div className="flex flex-col w-full h-full bg-gray-900 text-white">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-700 flex-shrink-0">
-        <span className="font-semibold">BSI Messenger</span>
+        <div className="flex items-center gap-3">
+          <span className="font-semibold">BSI Messenger</span>
+          <select
+            value={activeSection}
+            onChange={(e) => setActiveSection(e.target.value as typeof activeSection)}
+            className="bg-gray-700 text-white text-sm rounded-md px-2 py-1 outline-none cursor-pointer hover:bg-gray-600"
+          >
+            <option value="chats">Chats</option>
+            <option value="inbox">Inbox</option>
+            <option value="broadcast">Broadcast</option>
+            <option value="templates">Templates</option>
+            <option value="analytics">Analytics</option>
+          </select>
+        </div>
         <div className="flex items-center gap-3 text-sm text-gray-400">
           {user?.accountType === 'ADMIN' && (
             <button
@@ -93,9 +107,17 @@ function App() {
         </div>
       </div>
       <div className="flex-1 flex min-h-0">
-        <Sidebar onOpenSettings={() => setShowSettings(true)} />
-        <ChatArea onOpenPanel={() => setShowPanel(true)} panelOpen={showPanel || isNarrow} />
-        {showPanel && !isNarrow && <ContactInfoPanel onClose={() => setShowPanel(false)} />}
+        {activeSection === 'chats' ? (
+          <>
+            <Sidebar onOpenSettings={() => setShowSettings(true)} />
+            <ChatArea onOpenPanel={() => setShowPanel(true)} panelOpen={showPanel || isNarrow} />
+            {showPanel && !isNarrow && <ContactInfoPanel onClose={() => setShowPanel(false)} />}
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+            {activeSection[0].toUpperCase() + activeSection.slice(1)} — segera hadir
+          </div>
+        )}
       </div>
 
       {showNewUser && <NewUserDialog onClose={() => setShowNewUser(false)} />}
