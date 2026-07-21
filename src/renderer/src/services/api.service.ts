@@ -165,7 +165,9 @@ export const authApi = {
       }
     ).catch(() => {}),
   refresh: (refreshToken: string) =>
-    api.post<AuthTokens>('/auth/refresh', { refreshToken })
+    api.post<AuthTokens>('/auth/refresh', { refreshToken }),
+  changePassword: (password: string) =>
+    api.post<{ ok: boolean }>('/auth/change-password', { password })
 }
 
 // Users

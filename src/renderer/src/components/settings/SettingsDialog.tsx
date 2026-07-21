@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { isEnabled } from '../../services/notification.service'
 import { NOTIF_ENABLED_KEY, NOTIF_SOUND_KEY, SERVER_URL } from '../../config/constants'
+import { authApi } from '../../services/api.service'
 
 interface Settings {
   downloadDir: string | null
@@ -11,12 +12,13 @@ interface SettingsDialogProps {
   onClose: () => void
 }
 
-type Tab = 'general' | 'startup' | 'notifications'
+type Tab = 'general' | 'startup' | 'notifications' | 'account'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'startup', label: 'Startup' },
-  { id: 'notifications', label: 'Notifications' }
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'account', label: 'Account' }
 ]
 
 export default function SettingsDialog({ onClose }: SettingsDialogProps) {
@@ -27,6 +29,11 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [notifEnabled, setNotifEnabled] = useState(() => isEnabled(NOTIF_ENABLED_KEY))
   const [notifSound, setNotifSound] = useState(() => isEnabled(NOTIF_SOUND_KEY))
   const [activeTab, setActiveTab] = useState<Tab>('general')
+  const [newPass, setNewPass] = useState('')
+  const [confirmPass, setConfirmPass] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwError, setPwError] = useState<string | null>(null)
+  const [pwSuccess, setPwSuccess] = useState(false)
 
   useEffect(() => {
     window.api.getSettings().then((s) => {
@@ -53,6 +60,30 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
       onClose()
     } else {
       setError(result.error)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    setPwError(null)
+    setPwSuccess(false)
+    if (newPass.length < 8) {
+      setPwError('Password minimal 8 karakter.')
+      return
+    }
+    if (newPass !== confirmPass) {
+      setPwError('Konfirmasi password tidak cocok.')
+      return
+    }
+    setPwSaving(true)
+    try {
+      await authApi.changePassword(newPass)
+      setPwSuccess(true)
+      setNewPass('')
+      setConfirmPass('')
+    } catch {
+      setPwError('Gagal mengubah password. Coba lagi.')
+    } finally {
+      setPwSaving(false)
     }
   }
 
@@ -161,6 +192,43 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
                         Play sound
                       </label>
                     </div>
+                  </div>
+                )}
+
+                {activeTab === 'account' && (
+                  <div className="flex flex-col gap-3 max-w-sm">
+                    <p className="text-gray-400 text-xs">
+                      Ubah password login Anda. Minimal 8 karakter.
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-gray-300 text-sm">New Password</label>
+                      <input
+                        type="password"
+                        value={newPass}
+                        maxLength={128}
+                        onChange={(e) => setNewPass(e.target.value)}
+                        className="bg-gray-700 text-white text-sm rounded px-3 py-1.5 outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-gray-300 text-sm">Confirm Password</label>
+                      <input
+                        type="password"
+                        value={confirmPass}
+                        maxLength={128}
+                        onChange={(e) => setConfirmPass(e.target.value)}
+                        className="bg-gray-700 text-white text-sm rounded px-3 py-1.5 outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                    {pwError && <p className="text-red-400 text-sm">{pwError}</p>}
+                    {pwSuccess && <p className="text-green-400 text-sm">Password berhasil diubah.</p>}
+                    <button
+                      onClick={handleChangePassword}
+                      disabled={pwSaving}
+                      className="self-start px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm rounded"
+                    >
+                      {pwSaving ? 'Changing...' : 'Change Password'}
+                    </button>
                   </div>
                 )}
               </div>
