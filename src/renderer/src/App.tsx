@@ -5,6 +5,9 @@ import Sidebar from './components/chat/Sidebar'
 import ChatArea from './components/chat/ChatArea'
 import ContactInfoPanel from './components/chat/ContactInfoPanel'
 import InboxSection from './components/inbox/InboxSection'
+import BroadcastSection from './components/broadcast/BroadcastSection'
+import TemplatesSection from './components/templates/TemplatesSection'
+import AnalyticsSection from './components/analytics/AnalyticsSection'
 import NewUserDialog from './components/users/NewUserDialog'
 import SettingsDialog from './components/settings/SettingsDialog'
 import UserProfileDialog from './components/users/UserProfileDialog'
@@ -116,10 +119,12 @@ function App() {
           </>
         ) : activeSection === 'inbox' ? (
           <InboxSection />
+        ) : activeSection === 'broadcast' ? (
+          <BroadcastSection />
+        ) : activeSection === 'templates' ? (
+          <TemplatesSection />
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
-            {activeSection[0].toUpperCase() + activeSection.slice(1)} — segera hadir
-          </div>
+          <AnalyticsSection />
         )}
       </div>
 
