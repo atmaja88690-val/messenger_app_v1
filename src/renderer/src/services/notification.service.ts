@@ -64,7 +64,7 @@ function showNotification(m: Message): void {
       silent: !isEnabled(NOTIF_SOUND_KEY)
     })
     n.onclick = () => {
-      window.api.focusWindow()
+      window.api?.focusWindow?.()
       useChatStore.getState().selectConversation(m.conversationId)
     }
   } catch (err) {

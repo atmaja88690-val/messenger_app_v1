@@ -86,7 +86,7 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
       // src adalah blob URL (dari getFile()); ambil byte-nya lalu serahkan ke
       // main process untuk ditulis lewat dialog OS asli (bukan auto-download browser).
       const buf = await (await fetch(src)).arrayBuffer()
-      const res = await window.api.saveFileAs(
+      const res = await window.api!.saveFileAs(
         attachment.fileName || 'image',
         new Uint8Array(buf)
       )

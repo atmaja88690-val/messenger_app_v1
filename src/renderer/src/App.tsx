@@ -46,30 +46,30 @@ function App() {
   // onNewUser mengembalikan fungsi unsubscribe — wajib di-cleanup agar
   // listener tidak menumpuk saat HMR (pola sama dengan ws.service).
   useEffect(() => {
-    const unsubscribe = window.api.onNewUser(() => setShowNewUser(true))
-    return unsubscribe
+    const unsubscribe = window.api?.onNewUser?.(() => setShowNewUser(true))
+    return () => unsubscribe?.()
   }, [])
 
   useEffect(() => {
-    const unsubscribe = window.api.onSettings(() => setShowSettings(true))
-    return unsubscribe
+    const unsubscribe = window.api?.onSettings?.(() => setShowSettings(true))
+    return () => unsubscribe?.()
   }, [])
 
   useEffect(() => {
-    const unsubscribe = window.api.onMyProfile(() => setShowProfile(true))
-    return unsubscribe
+    const unsubscribe = window.api?.onMyProfile?.(() => setShowProfile(true))
+    return () => unsubscribe?.()
   }, [])
 
   useEffect(() => {
-    const unsubscribe = window.api.onAbout(() => setShowAbout(true))
-    return unsubscribe
+    const unsubscribe = window.api?.onAbout?.(() => setShowAbout(true))
+    return () => unsubscribe?.()
   }, [])
 
   useEffect(() => {
-    const unsubscribe = window.api.onLogout(() => {
+    const unsubscribe = window.api?.onLogout?.(() => {
       handleLogout()
     })
-    return unsubscribe
+    return () => unsubscribe?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

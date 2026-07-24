@@ -36,6 +36,11 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [pwSuccess, setPwSuccess] = useState(false)
 
   useEffect(() => {
+    if (!window.api?.getSettings) {
+      // Android/Capacitor: tak ada IPC Electron. Pakai default, jangan crash.
+      setLoading(false)
+      return
+    }
     window.api.getSettings().then((s) => {
       setSettings(s)
       setLoading(false)
@@ -43,7 +48,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
   }, [])
 
   const handlePickFolder = async () => {
-    const result = await window.api.pickDownloadFolder()
+    const result = await window.api!.pickDownloadFolder()
     if (result.canceled === false) {
       setSettings((prev) => ({ ...prev, downloadDir: result.path }))
     }
@@ -54,7 +59,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
     setError(null)
     localStorage.setItem(NOTIF_ENABLED_KEY, String(notifEnabled))
     localStorage.setItem(NOTIF_SOUND_KEY, String(notifSound))
-    const result = await window.api.setSettings({ ...settings, downloadDir: settings.downloadDir ?? undefined })
+    const result = await window.api!.setSettings({ ...settings, downloadDir: settings.downloadDir ?? undefined })
     setSaving(false)
     if (result.ok) {
       onClose()
