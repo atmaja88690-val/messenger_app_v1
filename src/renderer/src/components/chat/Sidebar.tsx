@@ -32,7 +32,15 @@ const LABEL: Record<string, string> = {
   OFFLINE: 'Offline'
 }
 
-export default function Sidebar({ onOpenSettings }: { onOpenSettings?: () => void }) {
+export default function Sidebar({
+  onOpenSettings,
+  mobileHidden,
+  onSelectConversation
+}: {
+  onOpenSettings?: () => void
+  mobileHidden?: boolean
+  onSelectConversation?: () => void
+}) {
   const { conversations, activeId, loadConversations, selectConversation, loadingConvos } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
   const me = useAuthStore((s) => s.user)
@@ -73,7 +81,7 @@ export default function Sidebar({ onOpenSettings }: { onOpenSettings?: () => voi
     return (
       <button
         key={c.id}
-        onClick={() => selectConversation(c.id)}
+        onClick={() => { selectConversation(c.id); onSelectConversation?.() }}
         className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-l-[3px] ${
           active ? 'bg-[#f0f7fc] border-[#4aa3df]' : 'border-transparent hover:bg-gray-50'
         }`}
@@ -96,7 +104,11 @@ export default function Sidebar({ onOpenSettings }: { onOpenSettings?: () => voi
   }
 
   return (
-    <div className="w-72 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col">
+    <div
+      className={`w-full md:w-72 flex-shrink-0 border-r border-gray-200 bg-white flex-col ${
+        mobileHidden ? 'hidden md:flex' : 'flex'
+      }`}
+    >
       <div className="px-3 py-3 border-b border-gray-100 flex items-center gap-3">
         <div className="relative flex-shrink-0">
           {me?.id ? (
@@ -146,7 +158,7 @@ export default function Sidebar({ onOpenSettings }: { onOpenSettings?: () => voi
                 return (
                   <button
                     key={c.id}
-                    onClick={() => { selectConversation(c.id); setHistoryOpen(false) }}
+                    onClick={() => { selectConversation(c.id); setHistoryOpen(false); onSelectConversation?.() }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-gray-50 transition-colors"
                   >
                     {otherM ? (

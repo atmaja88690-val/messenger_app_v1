@@ -110,7 +110,17 @@ function TextContextMenu({
   )
 }
 
-export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () => void; panelOpen?: boolean }) {
+export default function ChatArea({
+  onOpenPanel,
+  panelOpen,
+  mobileHidden,
+  onBackToList
+}: {
+  onOpenPanel?: () => void
+  panelOpen?: boolean
+  mobileHidden?: boolean
+  onBackToList?: () => void
+}) {
   const { conversations, activeId, messages, sendText, sendImage, loadingMsgs, markRead, readCursors, deleteMessage } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
   const [text, setText] = useState('')
@@ -190,7 +200,15 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
   }
 
   if (!activeId) {
-    return <div className="flex-1 flex items-center justify-center text-gray-500">Select a conversation to start</div>
+    return (
+      <div
+        className={`flex-1 items-center justify-center text-gray-500 ${
+          mobileHidden ? 'hidden md:flex' : 'flex'
+        }`}
+      >
+        Select a conversation to start
+      </div>
+    )
   }
 
   let lastDay = ''
@@ -203,9 +221,20 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
   const headOnline = headStatus === 'AVAILABLE'
 
   return (
-    <div className="flex-1 flex flex-col bg-white min-h-0">
+    <div
+      className={`flex-1 flex-col bg-white min-h-0 min-w-0 ${mobileHidden ? 'hidden md:flex' : 'flex'}`}
+    >
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-white flex-shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
+          {/* Tombol kembali ke daftar chat -- hanya tampil di mobile (<md). */}
+          <button
+            type="button"
+            onClick={() => onBackToList?.()}
+            aria-label="Kembali ke daftar chat"
+            className="md:hidden -ml-1 mr-0.5 p-1 text-gray-500 hover:text-gray-700 flex-shrink-0"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+          </button>
           {headPartner?.id ? (
             <Avatar userId={headPartner.id} name={headName} avatarKey={headPartner.avatarKey} className="w-8 h-8 rounded-full flex-shrink-0" />
           ) : (
@@ -318,12 +347,12 @@ export default function ChatArea({ onOpenPanel, panelOpen }: { onOpenPanel?: () 
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           placeholder="Type a message..."
-          className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-900 rounded-full border border-transparent focus:outline-none focus:border-[#4aa3df] focus:bg-white placeholder-gray-400"
+          className="flex-1 min-w-0 px-4 py-2.5 bg-gray-100 text-gray-900 rounded-full border border-transparent focus:outline-none focus:border-[#4aa3df] focus:bg-white placeholder-gray-400"
         />
         <button
           onClick={handleSend}
           disabled={!text.trim()}
-          className="px-5 py-2.5 bg-[#4aa3df] hover:bg-[#3a92ce] disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-full transition-colors"
+          className="flex-shrink-0 px-4 sm:px-5 py-2.5 bg-[#4aa3df] hover:bg-[#3a92ce] disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-full transition-colors"
         >
           Send
         </button>
