@@ -12,6 +12,7 @@ import NewUserDialog from './components/users/NewUserDialog'
 import SettingsDialog from './components/settings/SettingsDialog'
 import UserProfileDialog from './components/users/UserProfileDialog'
 import AboutDialog from './components/settings/AboutDialog'
+import { registerPushAndroid } from './services/push-android.service'
 
 type Section = 'chats' | 'inbox' | 'broadcast' | 'templates' | 'analytics'
 
@@ -65,6 +66,11 @@ function App() {
       s.loadMe()
     }
   }, [])
+
+  // Register FCM push (Android saja; NO-OP di Electron via guard di service).
+  useEffect(() => {
+    if (user) registerPushAndroid()
+  }, [user])
 
   // Listener menu native (main process) → buka dialog New User.
   // onNewUser mengembalikan fungsi unsubscribe — wajib di-cleanup agar

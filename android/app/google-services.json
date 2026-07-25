@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1003709168953",
+    "project_id": "bsim-9d5dc",
+    "storage_bucket": "bsim-9d5dc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1003709168953:android:10f72705fc4cede2fabce8",
+        "android_client_info": {
+          "package_name": "com.bsi.messenger"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzvVUIpsDcuQaI2g0Q13cabn3vtZqKluk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
