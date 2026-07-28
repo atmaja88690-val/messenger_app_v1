@@ -27,6 +27,7 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
   const [error, setError] = useState(false)
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState<{ left: number; top: number; ready: boolean } | null>(null)
 
@@ -134,7 +135,7 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
         alt={attachment.fileName}
         onContextMenu={openMenu}
         className="max-w-[280px] max-h-[280px] rounded-lg object-cover cursor-pointer"
-        onClick={() => window.open(src, '_blank')}
+        onClick={() => setPreviewOpen(true)}
       />
 
       {menu && (
@@ -174,6 +175,30 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
             )}
           </div>
         </>
+      )}
+
+      {previewOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 outline-none"
+          onClick={() => setPreviewOpen(false)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setPreviewOpen(false) }}
+          tabIndex={-1}
+          ref={(el) => el?.focus()}
+        >
+          <button
+            onClick={() => setPreviewOpen(false)}
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-gray-800/80 text-white text-xl hover:bg-gray-700"
+            aria-label="Close preview"
+          >
+            ✕
+          </button>
+          <img
+            src={src}
+            alt={attachment.fileName}
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
 
       {infoOpen && (
