@@ -1,0 +1,7 @@
+# Normalisasi line-ending: simpan LF di repo, checkout LF di working tree.
+# Mengalahkan core.autocrlf=true supaya tidak ada lagi diff CRLF massal.
+* text=auto eol=lf
+
+# Batch file Windows wajib CRLF (cmd.exe punya kasus tepi dengan LF).
+*.bat text eol=crlf
+*.cmd text eol=crlf
