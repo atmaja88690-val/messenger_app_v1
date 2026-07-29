@@ -76,6 +76,7 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
 
   const openMenu = (e: React.MouseEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     setMenu({ x: e.clientX, y: e.clientY })
   }
   const closeMenu = () => setMenu(null)
