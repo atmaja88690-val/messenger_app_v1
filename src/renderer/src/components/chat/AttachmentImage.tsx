@@ -198,12 +198,14 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
               visibility: menuPos?.ready ? 'visible' : 'hidden'
             }}
           >
+            {!Capacitor.isNativePlatform() && (
             <button
               onClick={handleSaveAs}
               className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-200 hover:bg-gray-700"
             >
               💾 Save File As...
             </button>
+            )}
             <button
               onClick={handleCopyImage}
               className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-200 hover:bg-gray-700"
