@@ -1,4 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { Filesystem, Directory } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
 import { attachmentsApi } from '../../services/api.service'
 import { useChatStore } from '../../stores/chat.store'
 import type { Attachment } from '../../types'
@@ -102,10 +105,36 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
     }
   }
 
+  // Android: clipboard gambar tidak didukung (hanya menempel base64 sbg teks).
+  // Pola baku Android = Share sheet: tulis ke cache -> ambil URI -> bagikan.
+  const shareImageAndroid = async (): Promise<void> => {
+    if (!src) return
+    try {
+      const blob = await (await fetch(src)).blob()
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader()
+        r.onloadend = () => resolve(String(r.result))
+        r.onerror = () => reject(new Error('gagal membaca gambar'))
+        r.readAsDataURL(blob)
+      })
+      const name = attachment.fileName || `image-${Date.now()}.png`
+      await Filesystem.writeFile({ path: name, data: dataUrl, directory: Directory.Cache })
+      const { uri } = await Filesystem.getUri({ directory: Directory.Cache, path: name })
+      await Share.share({ title: name, url: uri })
+    } catch (e) {
+      console.error('[AttachmentImage] shareImageAndroid error', e)
+      alert('Failed to share image.')
+    }
+  }
+
   const handleCopyImage = async () => {
     if (!src) return
     closeMenu()
     // window.api hanya ada di Electron; di Android (WebView) undefined.
+    if (Capacitor.isNativePlatform()) {
+      await shareImageAndroid()
+      return
+    }
     if (!window.api?.copyImage) return
     try {
       const buf = await (await fetch(src)).arrayBuffer()
@@ -179,7 +208,7 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
               onClick={handleCopyImage}
               className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-200 hover:bg-gray-700"
             >
-              📋 Copy Image
+              {Capacitor.isNativePlatform() ? '📤 Share Image' : '📋 Copy Image'}
             </button>
             <button
               onClick={() => { setInfoOpen(true); closeMenu() }}
