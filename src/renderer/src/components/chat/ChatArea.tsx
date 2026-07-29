@@ -147,8 +147,27 @@ export default function ChatArea({
     }
   }, [activeId, list.length])
 
+  // Gambar yang menunggu konfirmasi kirim (dari paste atau tombol lampiran).
+  const [pendingImage, setPendingImage] = useState<File | null>(null)
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null)
+
+  const clearPending = (): void => {
+    setPendingUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+    setPendingImage(null)
+  }
+
   const handleSend = async () => {
     const t = text.trim()
+    if (pendingImage) {
+      const file = pendingImage
+      clearPending()
+      setText('')
+      await sendImage(file, t || undefined)
+      return
+    }
     if (!t) return
     setText('')
     await sendText(t)
@@ -167,7 +186,11 @@ export default function ChatArea({
       alert(`Ukuran gambar maksimal ${MAX_IMAGE_MB}MB.`)
       return
     }
-    await sendImage(file)
+    setPendingImage(file)
+    setPendingUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return URL.createObjectURL(file)
+    })
   }
 
   // Paste gambar dari clipboard OS langsung ke chat (Ctrl+V di kolom pesan).
@@ -355,7 +378,20 @@ export default function ChatArea({
         />
       )}
 
-      <div className="p-3 border-t border-gray-200 bg-white flex gap-2 flex-shrink-0 items-center">
+      <div className="p-3 border-t border-gray-200 bg-white flex-shrink-0">
+        {pendingUrl && (
+          <div className="mb-2 inline-flex relative">
+            <img src={pendingUrl} alt="preview" className="h-20 w-20 object-cover rounded-lg border border-gray-300" />
+            <button
+              onClick={clearPending}
+              title="Cancel"
+              className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-700 text-white text-xs hover:bg-gray-800"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        <div className="flex gap-2 items-center">
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
         <button
           onClick={handlePickFile}
@@ -374,11 +410,12 @@ export default function ChatArea({
         />
         <button
           onClick={handleSend}
-          disabled={!text.trim()}
+          disabled={!text.trim() && !pendingImage}
           className="flex-shrink-0 px-4 sm:px-5 py-2.5 bg-[#4aa3df] hover:bg-[#3a92ce] disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-full transition-colors"
         >
           Send
         </button>
+        </div>
       </div>
     </div>
   )
