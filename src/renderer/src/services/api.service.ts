@@ -252,13 +252,18 @@ export const messagesApi = {
     convId: string,
     content: string,
     clientMsgId: string,
-    opts?: { type?: 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO'; attachments?: AttachmentInput[] }
+    opts?: {
+      type?: 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO'
+      attachments?: AttachmentInput[]
+      replyToId?: string
+    }
   ) =>
     api.post(`/messages/${convId}`, {
       content,
       clientMsgId,
       type: opts?.type ?? 'TEXT',
-      ...(opts?.attachments ? { attachments: opts.attachments } : {})
+      ...(opts?.attachments ? { attachments: opts.attachments } : {}),
+      ...(opts?.replyToId ? { replyToId: opts.replyToId } : {})
     }),
   delete: (convId: string, messageId: string) =>
     api.delete(`/messages/${convId}/${messageId}`)

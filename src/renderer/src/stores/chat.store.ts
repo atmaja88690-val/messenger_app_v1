@@ -14,7 +14,7 @@ interface ChatState {
 
   loadConversations: () => Promise<void>
   selectConversation: (id: string) => Promise<void>
-  sendText: (body: string) => Promise<void>
+  sendText: (body: string, replyToId?: string) => Promise<void>
   sendImage: (file: File, caption?: string) => Promise<void>
   deleteMessage: (conversationId: string, messageId: string) => Promise<void>
   markRead: (conversationId: string, seq: string | number) => void
@@ -59,7 +59,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  sendText: async (body) => {
+  sendText: async (body, replyToId) => {
     const convId = get().activeId
     if (!convId || !body.trim()) return
     const me = useAuthStore.getState().user
@@ -74,6 +74,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       type: 'TEXT',
       body,
       clientMsgId,
+      replyToId: replyToId ?? null,
       createdAt: new Date().toISOString()
     }
     set((s) => ({
@@ -81,7 +82,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }))
 
     try {
-      await messagesApi.send(convId, body, clientMsgId)
+      await messagesApi.send(convId, body, clientMsgId, replyToId ? { replyToId } : undefined)
       // ack via WS akan replace id+seq (lihat _onAck)
     } catch (e) {
       console.error('[chat] sendText gagal', e)

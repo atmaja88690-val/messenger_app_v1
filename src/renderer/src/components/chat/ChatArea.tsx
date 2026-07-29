@@ -47,9 +47,10 @@ function ReadTicks({ message, readUpToSeq }: { message: Message; readUpToSeq?: s
 // otomatis ter-select (mirip "Select Text" Virola, tapi langsung aktif
 // tanpa langkah tambahan). Menu: Copy as Text, Select Text, Delete (jika milik sendiri).
 function TextContextMenu({
-  x, y, body, canDelete, onClose, onDelete
+  x, y, body, canDelete, onClose, onDelete, onReply
 }: {
   x: number; y: number; body: string; canDelete: boolean; onClose: () => void; onDelete: () => void
+  onReply: () => void
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number; ready: boolean }>({ left: x, top: y, ready: false })
@@ -88,6 +89,9 @@ function TextContextMenu({
         className="fixed z-50 w-52 bg-gray-800 rounded-xl shadow-xl border border-gray-700 py-1 text-sm"
         style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}
       >
+        <button onClick={() => { onReply(); onClose() }} className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-200 hover:bg-gray-700">
+          ↩️ Reply
+        </button>
         <button onClick={handleCopy} className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-200 hover:bg-gray-700">
           📄 Copy as Text
         </button>
@@ -147,6 +151,14 @@ export default function ChatArea({
     }
   }, [activeId, list.length])
 
+  // Pesan yang sedang dibalas (null = tidak sedang membalas).
+  const [replyTo, setReplyTo] = useState<Message | null>(null)
+
+  // Cari pesan asli dari daftar yang sudah dimuat. Bisa null kalau pesan
+  // aslinya sudah ter-scroll jauh dan belum dimuat -> tampilkan fallback.
+  const findMessage = (id: string): Message | undefined =>
+    raw.find((x) => x.id === id)
+
   // Gambar yang menunggu konfirmasi kirim (dari paste atau tombol lampiran).
   const [pendingImage, setPendingImage] = useState<File | null>(null)
   const [pendingUrl, setPendingUrl] = useState<string | null>(null)
@@ -169,8 +181,10 @@ export default function ChatArea({
       return
     }
     if (!t) return
+    const rid = replyTo?.id
+    setReplyTo(null)
     setText('')
-    await sendText(t)
+    await sendText(t, rid)
   }
 
   const handlePickFile = () => fileInputRef.current?.click()
@@ -332,11 +346,30 @@ export default function ChatArea({
                   </span>
                 </div>
               )}
-              <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+              <div className={`group flex items-center gap-1 ${mine ? 'justify-end' : 'justify-start'}`}>
+                {mine && (
+                  <button
+                    onClick={() => setReplyTo(m)}
+                    title="Reply"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 text-xs"
+                  >
+                    ↩
+                  </button>
+                )}
                 <div
                   className={`max-w-[70%] ${hasImage ? 'p-1.5' : 'px-3 py-2'} rounded-2xl ${mine ? 'bg-[#e5fbd0] text-gray-900' : 'bg-white text-gray-900 border border-gray-200'}`}
                   onContextMenu={(e) => openTextMenu(e, m)}
                 >
+                  {m.replyToId && (
+                    <div className="mb-1 border-l-4 border-[#4aa3df] bg-black/5 rounded px-2 py-1">
+                      <div className="text-[11px] font-medium text-[#4aa3df]">
+                        {findMessage(m.replyToId)?.sender?.displayName ?? 'User'}
+                      </div>
+                      <div className="text-[11px] text-gray-600 truncate">
+                        {findMessage(m.replyToId)?.body || 'Pesan'}
+                      </div>
+                    </div>
+                  )}
                   {hasImage && (
                     <div className="mb-1">
                       <AttachmentImage
@@ -360,6 +393,15 @@ export default function ChatArea({
                     {mine && <ReadTicks message={m} readUpToSeq={activeId ? readCursors[activeId] : undefined} />}
                   </div>
                 </div>
+                {!mine && (
+                  <button
+                    onClick={() => setReplyTo(m)}
+                    title="Reply"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 text-xs"
+                  >
+                    ↩
+                  </button>
+                )}
               </div>
             </div>
           )
@@ -375,6 +417,10 @@ export default function ChatArea({
           canDelete={ctxMenu.mine}
           onClose={() => setCtxMenu(null)}
           onDelete={handleDeleteText}
+          onReply={() => {
+            const m = findMessage(ctxMenu.messageId)
+            if (m) setReplyTo(m)
+          }}
         />
       )}
 
@@ -386,6 +432,25 @@ export default function ChatArea({
               onClick={clearPending}
               title="Cancel"
               className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-700 text-white text-xs hover:bg-gray-800"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        {replyTo && (
+          <div className="mb-2 flex items-start gap-2 bg-gray-100 border-l-4 border-[#4aa3df] rounded px-3 py-2">
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium text-[#4aa3df]">
+                {replyTo.senderId === myId ? 'You' : replyTo.sender?.displayName ?? 'User'}
+              </div>
+              <div className="text-xs text-gray-600 truncate">
+                {replyTo.body || '📎 Attachment'}
+              </div>
+            </div>
+            <button
+              onClick={() => setReplyTo(null)}
+              title="Cancel reply"
+              className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-200"
             >
               ✕
             </button>
