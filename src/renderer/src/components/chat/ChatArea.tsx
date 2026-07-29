@@ -156,10 +156,9 @@ export default function ChatArea({
 
   const handlePickFile = () => fileInputRef.current?.click()
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
+  // Validasi dipakai bersama oleh tombol lampiran dan paste dari clipboard,
+  // supaya aturannya tidak pernah menyimpang di antara dua jalur.
+  const validateAndSendImage = async (file: File): Promise<void> => {
     if (!file.type.startsWith('image/')) {
       alert('Hanya file gambar yang didukung saat ini.')
       return
@@ -169,6 +168,29 @@ export default function ChatArea({
       return
     }
     await sendImage(file)
+  }
+
+  // Paste gambar dari clipboard OS langsung ke chat (Ctrl+V di kolom pesan).
+  // Teks biasa dibiarkan lewat ke perilaku bawaan input.
+  const handlePaste = async (e: React.ClipboardEvent<HTMLInputElement>): Promise<void> => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of Array.from(items)) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (!file) continue
+        e.preventDefault()
+        await validateAndSendImage(file)
+        return
+      }
+    }
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    await validateAndSendImage(file)
   }
 
   const openTextMenu = (e: React.MouseEvent, m: Message) => {
@@ -346,6 +368,7 @@ export default function ChatArea({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          onPaste={handlePaste}
           placeholder="Type a message..."
           className="flex-1 min-w-0 px-4 py-2.5 bg-gray-100 text-gray-900 rounded-full border border-transparent focus:outline-none focus:border-[#4aa3df] focus:bg-white placeholder-gray-400"
         />
