@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, Menu, dialog, type MenuItemConstructorOptions } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu, dialog, clipboard, nativeImage, type MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -185,6 +185,25 @@ app.whenReady().then(() => {
       }
       await writeFile(result.filePath, Buffer.from(data))
       return { ok: true, canceled: false }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  // image:copy -- taruh gambar ke clipboard OS (bitmap), supaya bisa di-paste
+  // ke Word/WordPerfect/aplikasi lain maupun kembali ke chat.
+  // Pola return sama dengan file:saveAs.
+  ipcMain.handle('image:copy', async (_event, data: Uint8Array) => {
+    try {
+      const img = nativeImage.createFromBuffer(Buffer.from(data))
+      // createFromBuffer TIDAK throw untuk format tak didukung (WebP/GIF/SVG);
+      // ia balik image kosong. Tanpa cek ini, clipboard terisi gambar kosong
+      // dan user mengira copy berhasil.
+      if (img.isEmpty()) {
+        return { ok: false, error: 'Format gambar tidak didukung clipboard (hanya PNG/JPEG)' }
+      }
+      clipboard.writeImage(img)
+      return { ok: true }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }

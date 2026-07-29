@@ -102,6 +102,24 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
     }
   }
 
+  const handleCopyImage = async () => {
+    if (!src) return
+    closeMenu()
+    // window.api hanya ada di Electron; di Android (WebView) undefined.
+    if (!window.api?.copyImage) return
+    try {
+      const buf = await (await fetch(src)).arrayBuffer()
+      const res = await window.api.copyImage(new Uint8Array(buf))
+      if (!res.ok) {
+        console.error('[AttachmentImage] copyImage gagal', res.error)
+        alert(`Failed to copy image: ${res.error}`)
+      }
+    } catch (e) {
+      console.error('[AttachmentImage] copyImage error', e)
+      alert('Failed to copy image.')
+    }
+  }
+
   const handleDelete = async () => {
     closeMenu()
     if (!window.confirm('Delete this message? This cannot be undone.')) return
@@ -156,6 +174,12 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
               className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-200 hover:bg-gray-700"
             >
               💾 Save File As...
+            </button>
+            <button
+              onClick={handleCopyImage}
+              className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-200 hover:bg-gray-700"
+            >
+              📋 Copy Image
             </button>
             <button
               onClick={() => { setInfoOpen(true); closeMenu() }}

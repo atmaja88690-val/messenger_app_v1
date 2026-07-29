@@ -34,6 +34,9 @@ const api = {
   // Tipe balikan dideklarasikan di index.d.ts (MenuBridge.saveFileAs).
   saveFileAs: (fileName: string, data: Uint8Array) =>
     ipcRenderer.invoke('file:saveAs', fileName, data),
+  // Salin gambar ke clipboard OS (bitmap) -> bisa di-paste ke Word/aplikasi lain.
+  // Handler di main/index.ts (image:copy). Hanya PNG/JPEG yang didukung.
+  copyImage: (data: Uint8Array) => ipcRenderer.invoke('image:copy', data),
   // Settings (fitur Options): get/set + pilih folder download.
   // Pola invoke, handler di main/index.ts (settings:get/set/pickFolder).
   getSettings: () => ipcRenderer.invoke('settings:get'),
