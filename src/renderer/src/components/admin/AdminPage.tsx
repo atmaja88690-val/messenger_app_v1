@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { adminApi } from '../../services/api.service'
 import { useAuthStore } from '../../stores/auth.store'
@@ -35,6 +35,68 @@ function errMsg(e: any, fallback: string): string {
   return fallback
 }
 
+function CtxItem({ label, icon, danger, disabled, onClick }: {
+  label: string; icon: string; danger?: boolean; disabled?: boolean; onClick: () => void
+}) {
+  return (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm disabled:opacity-40 disabled:cursor-not-allowed ${danger ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-100'} disabled:hover:bg-transparent`}
+    >
+      <span className="w-4 text-center">{icon}</span>{label}
+    </button>
+  )
+}
+
+function UserContextMenu({ u, x, y, isSelf, onClose, onEdit, onToggleActive, onToggleAdmin, onPassword, onDelete }: {
+  u: AdminUser; x: number; y: number; isSelf: boolean; onClose: () => void
+  onEdit: () => void; onToggleActive: () => void; onToggleAdmin: () => void
+  onPassword: () => void; onDelete: () => void
+}) {
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ left: number; top: number; ready: boolean }>({ left: x, top: y, ready: false })
+  useLayoutEffect(() => {
+    const el = menuRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const margin = 8
+    let left = x
+    let top = y
+    if (left + rect.width + margin > window.innerWidth) left = window.innerWidth - rect.width - margin
+    if (top + rect.height + margin > window.innerHeight) top = window.innerHeight - rect.height - margin
+    setPos({ left: Math.max(margin, left), top: Math.max(margin, top), ready: true })
+  }, [x, y])
+
+  const isMod = u.accountType === 'MODERATOR'
+  const deleted = u.username.startsWith('deleted_')
+  const locked = isSelf || deleted || isMod
+  const wrap = (fn: () => void) => () => { fn(); onClose() }
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} onContextMenu={(e) => { e.preventDefault(); onClose() }} />
+      <div
+        ref={menuRef}
+        className="fixed z-50 w-60 bg-white rounded-xl shadow-xl border border-gray-200 py-1"
+        style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}
+      >
+        <div className="px-3 py-2 border-b border-gray-100">
+          <div className="text-sm font-semibold text-gray-900 truncate">{u.displayName}</div>
+          <div className="text-xs text-gray-500 truncate">@{u.username}</div>
+          {isMod && <div className="mt-1 text-xs text-amber-700">Akun moderator - terkunci permanen</div>}
+        </div>
+        <CtxItem icon="*" label={u.accountType === 'ADMIN' ? 'Cabut admin' : 'Jadikan admin'} disabled={locked} onClick={wrap(onToggleAdmin)} />
+        <CtxItem icon="E" label="Edit profil" disabled={locked} onClick={wrap(onEdit)} />
+        <CtxItem icon="K" label="Reset password" disabled={deleted || isMod} onClick={wrap(onPassword)} />
+        <CtxItem icon="O" label={u.isActive ? 'Nonaktifkan' : 'Aktifkan'} disabled={locked} onClick={wrap(onToggleActive)} />
+        <div className="my-1 border-t border-gray-100" />
+        <CtxItem icon="X" label="Hapus user" danger disabled={locked} onClick={wrap(onDelete)} />
+      </div>
+    </>
+  )
+}
+
 export default function AdminPage() {
   const navigate = useNavigate()
   const me = useAuthStore((s) => s.user)
@@ -66,6 +128,7 @@ export default function AdminPage() {
   const [delConfirm, setDelConfirm] = useState('')
 
   const [saving, setSaving] = useState(false)
+  const [ctx, setCtx] = useState<{ u: AdminUser; x: number; y: number } | null>(null)
   const isAdmin = me?.accountType === 'ADMIN' || me?.accountType === 'MODERATOR'
 
   const load = async () => {
@@ -231,7 +294,10 @@ export default function AdminPage() {
                 return (
                   <tr key={u.id} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-2.5 text-gray-900">
-                      <div className="flex items-center gap-2.5">
+                      <div
+                        className="flex items-center gap-2.5 cursor-context-menu"
+                        onContextMenu={(e) => { e.preventDefault(); setCtx({ u, x: e.clientX, y: e.clientY }) }}
+                      >
                         <Avatar userId={u.id} name={u.displayName} avatarKey={u.avatarKey} fallback="silhouette" className="w-8 h-8 rounded-full flex-shrink-0" />
                         <span className="truncate">
                           {u.displayName}
@@ -356,6 +422,21 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {ctx && (
+        <UserContextMenu
+          u={ctx.u}
+          x={ctx.x}
+          y={ctx.y}
+          isSelf={ctx.u.id === me?.id}
+          onClose={() => setCtx(null)}
+          onEdit={() => openEdit(ctx.u)}
+          onToggleActive={() => toggleActive(ctx.u)}
+          onToggleAdmin={() => toggleAdmin(ctx.u)}
+          onPassword={() => { setPwUser(ctx.u); setPw1(''); setPw2(''); setError(null) }}
+          onDelete={() => { setDelUser(ctx.u); setDelConfirm(''); setError(null) }}
+        />
       )}
     </div>
   )
