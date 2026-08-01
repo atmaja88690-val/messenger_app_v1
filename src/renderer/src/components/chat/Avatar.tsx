@@ -8,6 +8,8 @@ interface AvatarProps {
   // null  = server sudah bilang user ini TIDAK punya avatar -> jangan fetch.
   // undefined = pemanggil tidak tahu -> fetch seperti biasa (perilaku lama).
   avatarKey?: string | null
+  // 'initials' (default) = fallback huruf awal nama; 'silhouette' = ikon orang generik.
+  fallback?: 'initials' | 'silhouette'
 }
 
 function initials(name: string): string {
@@ -19,7 +21,7 @@ function initials(name: string): string {
 // avatarKey backend deterministik per-user (avatars/{userId}.{ext}), jadi cache
 // permanen bisa menyajikan foto basi setelah user ganti avatar. Di-fetch ulang
 // tiap mount, blob URL di-revoke saat unmount ATAU saat userId berganti.
-export default function Avatar({ userId, name, className, avatarKey }: AvatarProps) {
+export default function Avatar({ userId, name, className, avatarKey, fallback = 'initials' }: AvatarProps) {
   const [src, setSrc] = useState<string | null>(null)
 
   useEffect(() => {
@@ -72,6 +74,15 @@ export default function Avatar({ userId, name, className, avatarKey }: AvatarPro
     )
   }
 
+  if (fallback === 'silhouette') {
+    return (
+      <div className={`${base} bg-gray-200 flex items-center justify-center text-gray-500`} title={name}>
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-3/5 h-3/5" aria-hidden="true">
+          <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z" />
+        </svg>
+      </div>
+    )
+  }
   return (
     <div className={`${base} bg-blue-600 flex items-center justify-center text-white text-sm font-semibold`}>
       {initials(name)}

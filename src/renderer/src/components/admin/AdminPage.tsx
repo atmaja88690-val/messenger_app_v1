@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { adminApi } from '../../services/api.service'
 import { useAuthStore } from '../../stores/auth.store'
 import type { User } from '../../types'
+import Avatar from '../chat/Avatar'
 
 interface AdminUser extends User {
   _count?: { sessions: number; messages: number }
@@ -230,8 +231,13 @@ export default function AdminPage() {
                 return (
                   <tr key={u.id} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-2.5 text-gray-900">
-                      {u.displayName}
-                      {self && <span className="ml-2 text-xs text-gray-400">(Anda)</span>}
+                      <div className="flex items-center gap-2.5">
+                        <Avatar userId={u.id} name={u.displayName} avatarKey={u.avatarKey} fallback="silhouette" className="w-8 h-8 rounded-full flex-shrink-0" />
+                        <span className="truncate">
+                          {u.displayName}
+                          {self && <span className="ml-2 text-xs text-gray-400">(Anda)</span>}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-4 py-2.5 text-gray-600">{u.username}</td>
                     <td className="px-4 py-2.5 text-gray-600">{u.email ?? '—'}</td>
