@@ -142,7 +142,7 @@ function App() {
           <span className="font-semibold truncate">BSI Messenger</span>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-400 flex-shrink-0">
-          {user?.accountType === 'ADMIN' && (
+          {(user?.accountType === 'ADMIN' || user?.accountType === 'MODERATOR') && (
             <button
               onClick={() => navigate({ to: '/admin' })}
               className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-md text-white"

@@ -65,7 +65,7 @@ export default function AdminPage() {
   const [delConfirm, setDelConfirm] = useState('')
 
   const [saving, setSaving] = useState(false)
-  const isAdmin = me?.accountType === 'ADMIN'
+  const isAdmin = me?.accountType === 'ADMIN' || me?.accountType === 'MODERATOR'
 
   const load = async () => {
     setLoading(true); setError(null)

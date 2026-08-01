@@ -2,7 +2,7 @@
 // AUTH — verified vs DB + API 29 Juni 2026
 // ============================================================
 export type UserStatus = 'AVAILABLE' | 'AWAY' | 'DND' | 'OFFLINE'
-export type AccountType = 'USER' | 'ADMIN' | 'SYSTEM'
+export type AccountType = 'USER' | 'ADMIN' | 'AGENT' | 'SUPERVISOR' | 'MODERATOR'
 
 export interface User {
   id: string
