@@ -225,6 +225,8 @@ export default function AdminPage() {
               {!loading && users.map((u) => {
                 const self = u.id === me?.id
                 const deleted = u.username.startsWith('deleted_')
+                const isMod = u.accountType === 'MODERATOR'
+                const locked = self || deleted || isMod || busyId === u.id
                 return (
                   <tr key={u.id} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-2.5 text-gray-900">
@@ -234,7 +236,7 @@ export default function AdminPage() {
                     <td className="px-4 py-2.5 text-gray-600">{u.username}</td>
                     <td className="px-4 py-2.5 text-gray-600">{u.email ?? '—'}</td>
                     <td className="px-4 py-2.5">
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${u.accountType === 'ADMIN' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{u.accountType ?? 'USER'}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs ${u.accountType === 'MODERATOR' ? 'bg-amber-50 text-amber-700 font-semibold' : u.accountType === 'ADMIN' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{u.accountType ?? 'USER'}</span>
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
@@ -245,11 +247,11 @@ export default function AdminPage() {
                     <td className="px-4 py-2.5 text-right text-gray-500">{u._count?.messages ?? '—'}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button disabled={self || deleted || busyId === u.id} onClick={() => openEdit(u)} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">Edit</button>
-                        <button disabled={self || deleted || busyId === u.id} onClick={() => toggleActive(u)} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">{u.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button>
-                        <button disabled={self || deleted || busyId === u.id} onClick={() => toggleAdmin(u)} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">{u.accountType === 'ADMIN' ? 'Cabut admin' : 'Jadikan admin'}</button>
-                        <button disabled={deleted || busyId === u.id} onClick={() => { setPwUser(u); setPw1(''); setPw2(''); setError(null) }} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">Password</button>
-                        <button disabled={self || deleted || busyId === u.id} onClick={() => { setDelUser(u); setDelConfirm(''); setError(null) }} className="px-2.5 py-1 text-xs border border-red-200 rounded-md text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed">Hapus</button>
+                        <button disabled={locked} onClick={() => openEdit(u)} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">Edit</button>
+                        <button disabled={locked} onClick={() => toggleActive(u)} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">{u.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button>
+                        <button disabled={locked} onClick={() => toggleAdmin(u)} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">{u.accountType === 'ADMIN' ? 'Cabut admin' : 'Jadikan admin'}</button>
+                        <button disabled={deleted || isMod || busyId === u.id} onClick={() => { setPwUser(u); setPw1(''); setPw2(''); setError(null) }} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">Password</button>
+                        <button disabled={locked} onClick={() => { setDelUser(u); setDelConfirm(''); setError(null) }} className="px-2.5 py-1 text-xs border border-red-200 rounded-md text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed">Hapus</button>
                       </div>
                     </td>
                   </tr>
