@@ -17,6 +17,8 @@ interface Stats {
 }
 
 const PAGE_SIZE = 20
+const actBtn = 'px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed'
+const actBtnDanger = 'px-2.5 py-1 text-xs border border-red-200 rounded-md text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed'
 const STATUS_DOT: Record<string, string> = {
   AVAILABLE: 'bg-green-500',
   AWAY: 'bg-yellow-500',
@@ -129,6 +131,17 @@ export default function AdminPage() {
 
   const [saving, setSaving] = useState(false)
   const [ctx, setCtx] = useState<{ u: AdminUser; x: number; y: number } | null>(null)
+
+  // Dipakai bersama oleh tabel (desktop) dan kartu (mobile) -- jangan duplikasi.
+  const actionButtons = (u: AdminUser, locked: boolean, deleted: boolean, isMod: boolean) => (
+    <div className="flex items-center justify-end gap-1.5 flex-wrap">
+      <button disabled={locked} onClick={() => openEdit(u)} className={actBtn}>Edit</button>
+      <button disabled={locked} onClick={() => toggleActive(u)} className={actBtn}>{u.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button>
+      <button disabled={locked} onClick={() => toggleAdmin(u)} className={actBtn}>{u.accountType === 'ADMIN' ? 'Cabut admin' : 'Jadikan admin'}</button>
+      <button disabled={deleted || isMod || busyId === u.id} onClick={() => { setPwUser(u); setPw1(''); setPw2(''); setError(null) }} className={actBtn}>Password</button>
+      <button disabled={locked} onClick={() => { setDelUser(u); setDelConfirm(''); setError(null) }} className={actBtnDanger}>Hapus</button>
+    </div>
+  )
   const isAdmin = me?.accountType === 'ADMIN' || me?.accountType === 'MODERATOR'
 
   const load = async () => {
@@ -270,7 +283,7 @@ export default function AdminPage() {
 
         {error && <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
 
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="hidden md:block bg-white border border-gray-200 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
               <tr>
@@ -318,19 +331,50 @@ export default function AdminPage() {
                     </td>
                     <td className="px-4 py-2.5 text-right text-gray-500">{u._count?.messages ?? '—'}</td>
                     <td className="px-4 py-2.5">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button disabled={locked} onClick={() => openEdit(u)} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">Edit</button>
-                        <button disabled={locked} onClick={() => toggleActive(u)} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">{u.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button>
-                        <button disabled={locked} onClick={() => toggleAdmin(u)} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">{u.accountType === 'ADMIN' ? 'Cabut admin' : 'Jadikan admin'}</button>
-                        <button disabled={deleted || isMod || busyId === u.id} onClick={() => { setPwUser(u); setPw1(''); setPw2(''); setError(null) }} className="px-2.5 py-1 text-xs border border-gray-200 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed">Password</button>
-                        <button disabled={locked} onClick={() => { setDelUser(u); setDelConfirm(''); setError(null) }} className="px-2.5 py-1 text-xs border border-red-200 rounded-md text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed">Hapus</button>
-                      </div>
+                      {actionButtons(u, locked, deleted, isMod)}
                     </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
+        </div>
+
+        <div className="md:hidden flex flex-col gap-2">
+          {loading && <div className="px-4 py-6 text-center text-gray-400 text-sm">Memuat...</div>}
+          {!loading && users.length === 0 && <div className="px-4 py-6 text-center text-gray-400 text-sm">Tidak ada user</div>}
+          {!loading && users.map((u) => {
+            const self = u.id === me?.id
+            const deleted = u.username.startsWith('deleted_')
+            const isMod = u.accountType === 'MODERATOR'
+            const locked = self || deleted || isMod || busyId === u.id
+            return (
+              <div key={u.id} className="bg-white border border-gray-200 rounded-xl p-3">
+                <div className="flex items-center gap-3">
+                  <Avatar userId={u.id} name={u.displayName} avatarKey={u.avatarKey} fallback="silhouette" className="w-10 h-10 rounded-full flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-gray-900 truncate">{u.displayName}</span>
+                      {self && <span className="text-xs text-gray-400 flex-shrink-0">(Anda)</span>}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">@{u.username}</div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs flex-shrink-0 ${u.accountType === 'MODERATOR' ? 'bg-amber-50 text-amber-700 font-semibold' : u.accountType === 'ADMIN' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{u.accountType ?? 'USER'}</span>
+                </div>
+                <div className="flex items-center gap-3 mt-2.5 text-xs text-gray-500">
+                  <span className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${STATUS_DOT[u.status] ?? 'bg-gray-400'}`} />
+                    <span className={u.isActive ? 'text-gray-600' : 'text-red-600'}>{u.isActive ? 'Aktif' : 'Nonaktif'}</span>
+                  </span>
+                  <span>{u._count?.messages ?? 0} pesan</span>
+                  {u.email && <span className="truncate">{u.email}</span>}
+                </div>
+                <div className="mt-3 pt-2.5 border-t border-gray-100">
+                  {actionButtons(u, locked, deleted, isMod)}
+                </div>
+              </div>
+            )
+          })}
         </div>
 
         <div className="flex items-center justify-between mt-3 text-sm text-gray-500">
