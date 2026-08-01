@@ -1,10 +1,52 @@
-import { app, shell, BrowserWindow, ipcMain, Menu, dialog, clipboard, nativeImage, Notification, type MenuItemConstructorOptions } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu, dialog, clipboard, nativeImage, Notification, Tray, type MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
 let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+// Bedakan "user menutup window" (-> sembunyi ke tray) dari "app benar-benar keluar".
+// Tanpa flag ini, menu Keluar di tray ikut tercegat dan app tidak pernah bisa ditutup.
+let isQuitting = false
+
+function createTray(): void {
+  if (tray) return
+  // Ikon sumber besar (untuk installer); tray Windows butuh 16x16, kalau tidak buram.
+  const trayIcon = nativeImage.createFromPath(icon).resize({ width: 16, height: 16 })
+  tray = new Tray(trayIcon)
+  tray.setToolTip('BSI Messenger')
+
+  const showWindow = (): void => {
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  }
+
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Buka BSI Messenger', click: showWindow },
+      { type: 'separator' },
+      {
+        label: 'Keluar',
+        click: () => {
+          isQuitting = true
+          app.quit()
+        }
+      }
+    ])
+  )
+
+  // Klik kiri: toggle. Perilaku yang diharapkan pengguna Windows.
+  tray.on('click', () => {
+    if (mainWindow?.isVisible() && !mainWindow.isMinimized()) {
+      mainWindow.hide()
+    } else {
+      showWindow()
+    }
+  })
+}
 
 // Settings persisten (fitur Options, Fase 1): settings.json di userData, milik main process.
 // Hanya downloadDir disimpan di JSON -- openAtLogin sumber kebenarannya OS
@@ -118,6 +160,14 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
     }
+  })
+
+  // Close-to-tray: X menyembunyikan, tidak mematikan app -- supaya notifikasi
+  // tetap jalan di latar (bersama openAtLogin). Keluar sungguhan lewat menu tray.
+  mainWindow.on('close', (event) => {
+    if (isQuitting) return
+    event.preventDefault()
+    mainWindow?.hide()
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -283,6 +333,7 @@ app.whenReady().then(() => {
 
   buildMenu()
   createWindow()
+  createTray()
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
@@ -294,6 +345,10 @@ app.whenReady().then(() => {
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
+app.on('before-quit', () => {
+  isQuitting = true
+})
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
