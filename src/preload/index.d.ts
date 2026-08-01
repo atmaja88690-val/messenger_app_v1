@@ -15,6 +15,7 @@ interface MenuBridge {
   setSettings: (patch: { downloadDir?: string; openAtLogin?: boolean }) => Promise<{ ok: true; downloadDir: string | null; openAtLogin: boolean } | { ok: false; error: string }>
   pickDownloadFolder: () => Promise<{ canceled: true } | { canceled: false; path: string }>
   focusWindow: () => Promise<void>
+  showNotification: (opts: { title: string; body: string; silent?: boolean }) => Promise<string>
 }
 
 declare global {

@@ -44,7 +44,10 @@ const api = {
     ipcRenderer.invoke('settings:set', patch),
   pickDownloadFolder: () => ipcRenderer.invoke('settings:pickFolder'),
   // Dipanggil dari notification.service.ts saat toast diklik: fokuskan window OS.
-  focusWindow: () => ipcRenderer.invoke('window:focus')
+  focusWindow: () => ipcRenderer.invoke('window:focus'),
+  // Toast lewat main process (timeoutType 'never'). Resolve: clicked/closed/failed/unsupported.
+  showNotification: (opts: { title: string; body: string; silent?: boolean }) =>
+    ipcRenderer.invoke('notify:show', opts)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

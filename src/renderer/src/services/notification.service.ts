@@ -58,15 +58,29 @@ function showNotification(m: Message): void {
   const sender = senderNameFor(m)
   const title = conv && conv.type === 'GROUP' && conv.title ? `${sender} (${conv.title})` : sender
 
+  const body = bodyTextFor(m)
+  const silent = !isEnabled(NOTIF_SOUND_KEY)
+  const openConvo = (): void => {
+    window.api?.focusWindow?.()
+    useChatStore.getState().selectConversation(m.conversationId)
+  }
+
+  // Desktop (Electron): lewat main process supaya toast bertahan sampai ditutup user.
+  // Web Notification API tidak punya timeoutType -- toast selalu hilang sendiri.
+  if (window.api?.showNotification) {
+    window.api
+      .showNotification({ title, body, silent })
+      .then((result) => {
+        if (result === 'clicked') openConvo()
+      })
+      .catch((err) => console.warn('[Notification] IPC gagal:', err))
+    return
+  }
+
+  // Fallback: Android/Capacitor atau browser -- tidak ada main process.
   try {
-    const n = new Notification(title, {
-      body: bodyTextFor(m),
-      silent: !isEnabled(NOTIF_SOUND_KEY)
-    })
-    n.onclick = () => {
-      window.api?.focusWindow?.()
-      useChatStore.getState().selectConversation(m.conversationId)
-    }
+    const n = new Notification(title, { body, silent })
+    n.onclick = openConvo
   } catch (err) {
     console.warn('[Notification] Failed to show:', err)
   }

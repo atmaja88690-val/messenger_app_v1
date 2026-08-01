@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, Menu, dialog, clipboard, nativeImage, type MenuItemConstructorOptions } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu, dialog, clipboard, nativeImage, Notification, type MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -251,6 +251,25 @@ app.whenReady().then(() => {
       return { canceled: true }
     }
     return { canceled: false, path: result.filePaths[0] }
+  })
+
+  // notify:show -- toast lewat main process, BUKAN Web Notification API di renderer.
+  // Alasan: hanya Notification milik Electron yang punya timeoutType 'never', yang
+  // membuat toast bertahan sampai ditutup user (Windows: scenario='reminder').
+  ipcMain.handle('notify:show', async (_event, opts: { title: string; body: string; silent?: boolean }) => {
+    if (!Notification.isSupported()) return 'unsupported'
+    return await new Promise<string>((resolve) => {
+      const n = new Notification({
+        title: opts.title,
+        body: opts.body,
+        silent: opts.silent === true,
+        timeoutType: 'never'
+      })
+      n.on('click', () => resolve('clicked'))
+      n.on('close', () => resolve('closed'))
+      n.on('failed', () => resolve('failed'))
+      n.show()
+    })
   })
 
   // window:focus -- dipanggil renderer saat toast notifikasi diklik.
