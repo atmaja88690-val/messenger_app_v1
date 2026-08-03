@@ -13,6 +13,11 @@ import SettingsDialog from './components/settings/SettingsDialog'
 import UserProfileDialog from './components/users/UserProfileDialog'
 import AboutDialog from './components/settings/AboutDialog'
 import { registerPushAndroid } from './services/push-android.service'
+import { initCallBridge } from './stores/call.store'
+
+// Listener call didaftarkan sekali di level modul, SEBELUM WS tersambung.
+// Di dalam komponen akan terdaftar ulang tiap remount/HMR.
+initCallBridge()
 
 type Section = 'chats' | 'inbox' | 'broadcast' | 'templates' | 'analytics'
 

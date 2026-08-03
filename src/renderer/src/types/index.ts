@@ -91,7 +91,42 @@ export interface Conversation {
 // WEBSOCKET
 // ============================================================
 export type WsEventType =
-  | 'connected' | 'new_message' | 'message_ack' | 'typing' | 'presence' | 'pong' | 'receipt'
+  | 'connected' | 'new_message' | 'message_ack' | 'typing' | 'presence' | 'pong' | 'receipt' | 'error'
+  // Call signaling (WebRTC P2P 1:1) -- cermin WS_EVENTS backend
+  | 'call_invite' | 'call_answer' | 'call_reject' | 'call_ice' | 'call_end'
+  | 'call_incoming' | 'call_accepted' | 'call_rejected' | 'call_ended'
+
+export type CallType = 'AUDIO' | 'VIDEO'
+export type CallState = 'RINGING' | 'ACTIVE' | 'ENDED' | 'MISSED'
+
+export interface CallPeer {
+  id: string
+  displayName: string
+}
+
+export interface WsCallIncomingPayload {
+  callId: string
+  conversationId: string
+  callType: CallType
+  sdp: RTCSessionDescriptionInit
+  from: CallPeer
+}
+
+export interface WsCallAcceptedPayload {
+  callId: string
+  sdp: RTCSessionDescriptionInit
+  by: CallPeer
+}
+
+export interface WsCallIcePayload {
+  callId: string
+  candidate: RTCIceCandidateInit
+}
+
+export interface WsCallEndedPayload {
+  callId: string
+  by: CallPeer
+}
 
 export interface WsEvent<T = unknown> {
   type: WsEventType

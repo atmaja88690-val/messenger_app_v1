@@ -5,6 +5,8 @@ import AttachmentImage from './AttachmentImage'
 import Avatar from './Avatar'
 import chatPattern from '../../assets/chat-pattern.svg'
 import type { Message } from '../../types'
+import { useCallStore } from '../../stores/call.store'
+import CallOverlay from './CallOverlay'
 
 function formatDateSeparator(iso: string): string {
   const d = new Date(iso)
@@ -277,6 +279,20 @@ export default function ChatArea({
     : undefined
   const headName = activeConv?.title || headPartner?.displayName || headPartner?.username || 'Conversation'
   const headStatus = headPartner?.status
+
+  // Panggilan 1:1 saja -- headPartner undefined untuk GROUP, tombol otomatis tersembunyi.
+  const startCall = useCallStore.getState().startCall
+  const canCall = activeId !== null && headPartner?.id !== undefined
+  const startVoiceCall = () => {
+    if (canCall && headPartner?.id !== undefined) {
+      void startCall(activeId, 'AUDIO', { id: headPartner.id, displayName: headName })
+    }
+  }
+  const startVideoCall = () => {
+    if (canCall && headPartner?.id !== undefined) {
+      void startCall(activeId, 'VIDEO', { id: headPartner.id, displayName: headName })
+    }
+  }
   const headOnline = headStatus === 'AVAILABLE'
 
   return (
@@ -316,8 +332,11 @@ export default function ChatArea({
           <svg className="opacity-40 cursor-default" xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m22 8-6 4 6 4V8Z" /><rect width="14" height="12" x="2" y="6" rx="2" /></svg>
           <svg className="opacity-40 cursor-default" xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /></svg>
           */}
-          <button type="button" onClick={() => { /* TODO: implement share screen */ }} aria-label="Share screen" className="hover:text-white transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v10" /><path d="m8 7 4-4 4 4" /><rect width="20" height="14" x="2" y="7" rx="2" ry="2" /></svg>
+          <button type="button" onClick={() => startVoiceCall()} aria-label="Panggilan suara" title="Panggilan suara" className="hover:text-white transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.68 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.32 1.85.55 2.81.68A2 2 0 0 1 22 16.92z" /></svg>
+          </button>
+          <button type="button" onClick={() => startVideoCall()} aria-label="Panggilan video" title="Panggilan video" className="hover:text-white transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 8-6 4 6 4V8Z" /><rect width="14" height="12" x="2" y="6" rx="2" /></svg>
           </button>
           {!panelOpen && (
             <button type="button" onClick={() => onOpenPanel?.()} aria-label="Show contact info" className="hover:text-white transition-colors">
@@ -482,6 +501,7 @@ export default function ChatArea({
         </button>
         </div>
       </div>
+      <CallOverlay />
     </div>
   )
 }
