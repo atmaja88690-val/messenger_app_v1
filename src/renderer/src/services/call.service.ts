@@ -1,4 +1,5 @@
 import { wsService } from './ws.service'
+import api from './api.service'
 import type {
   CallType,
   WsCallIncomingPayload,
@@ -7,8 +8,28 @@ import type {
 } from '../types'
 
 // WebRTC P2P 1:1. Media mengalir langsung antar perangkat -- server hanya relay SDP/ICE.
-// STUN publik cukup untuk jaringan sama. TURN menyusul (Fase 2) untuk NAT ketat.
-const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }]
+// ICE servers diambil dari backend (STUN + TURN coturn BSIM, kredensial ephemeral).
+// Fallback STUN publik hanya kalau endpoint gagal -- call di jaringan sama tetap jalan.
+const FALLBACK_ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }]
+
+// Cache per sesi: kredensial TURN berlaku 12 jam, satu fetch cukup.
+let cachedIce: RTCIceServer[] | null = null
+
+async function getIceServers(): Promise<RTCIceServer[]> {
+  if (cachedIce !== null) return cachedIce
+  try {
+    const { data } = await api.get('/turn/credentials')
+    const servers = data?.iceServers as RTCIceServer[] | undefined
+    if (servers !== undefined && servers.length > 0) {
+      cachedIce = servers
+      console.log('[call] ICE dari server, turnEnabled =', data?.turnEnabled)
+      return servers
+    }
+  } catch (err) {
+    console.warn('[call] Gagal ambil ICE dari server, pakai fallback', err)
+  }
+  return FALLBACK_ICE
+}
 
 export interface CallCallbacks {
   onRemoteStream: (stream: MediaStream) => void
@@ -50,8 +71,8 @@ class CallService {
     }
   }
 
-  private buildPc(callId: string): RTCPeerConnection {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+  private buildPc(callId: string, iceServers: RTCIceServer[]): RTCPeerConnection {
+    const pc = new RTCPeerConnection({ iceServers })
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {
@@ -79,7 +100,8 @@ class CallService {
     this.cb?.onLocalStream(this.localStream)
 
     // callId belum ada sampai server balas -- pakai placeholder, diganti saat call_accepted.
-    this.pc = this.buildPc('pending')
+    const ice = await getIceServers()
+    this.pc = this.buildPc('pending', ice)
     this.localStream.getTracks().forEach((t) => this.pc?.addTrack(t, this.localStream as MediaStream))
 
     const offer = await this.pc.createOffer()
@@ -93,7 +115,8 @@ class CallService {
     this.localStream = await this.getMedia(payload.callType)
     this.cb?.onLocalStream(this.localStream)
 
-    this.pc = this.buildPc(payload.callId)
+    const ice = await getIceServers()
+    this.pc = this.buildPc(payload.callId, ice)
     this.localStream.getTracks().forEach((t) => this.pc?.addTrack(t, this.localStream as MediaStream))
 
     await this.pc.setRemoteDescription(payload.sdp)
