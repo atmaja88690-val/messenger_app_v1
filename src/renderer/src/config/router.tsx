@@ -1,4 +1,4 @@
-import { createRouter, createRoute, createRootRoute, Outlet, redirect } from '@tanstack/react-router'
+import { createRouter, createRoute, createRootRoute, Outlet, redirect, createHashHistory } from '@tanstack/react-router'
 import LoginPage from '../components/auth/LoginPage'
 import App from '../App'
 import AdminPage from '../components/admin/AdminPage'
@@ -40,7 +40,7 @@ const adminRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([loginRoute, chatRoute, adminRoute])
 
-export const router = createRouter({ routeTree })
+export const router = createRouter({ routeTree, history: createHashHistory() })
 
 declare module '@tanstack/react-router' {
   interface Register {

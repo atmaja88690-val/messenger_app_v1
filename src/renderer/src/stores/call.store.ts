@@ -22,8 +22,10 @@ interface CallStore {
   micOn: boolean
   camOn: boolean
   error: string | null
+  reconnecting: boolean
 
   startCall: (conversationId: string, callType: CallType, peer: CallPeer) => Promise<void>
+  onCreated: (callId: string, callType: CallType) => Promise<void>
   incoming: (p: WsCallIncomingPayload) => void
   accept: () => Promise<void>
   reject: () => void
@@ -47,6 +49,7 @@ const initial = {
   micOn: true,
   camOn: true,
   error: null,
+  reconnecting: false,
 }
 
 export const useCallStore = create<CallStore>((set, get) => ({
@@ -58,6 +61,18 @@ export const useCallStore = create<CallStore>((set, get) => ({
     set({ phase: 'calling', callType, peer, conversationId, error: null })
     try {
       await callService.startCall(conversationId, callType)
+    } catch (err) {
+      set({ phase: 'idle', error: (err as Error).message })
+      callService.cleanup()
+    }
+  },
+
+  // SFU: server balas call_created dengan callId -> pemanggil join room
+  // tanpa menunggu callee menjawab (LiveKit menangani peserta bergiliran).
+  onCreated: async (callId, callType) => {
+    set({ callId })
+    try {
+      await callService.onCreated(callId, callType)
     } catch (err) {
       set({ phase: 'idle', error: (err as Error).message })
       callService.cleanup()
@@ -154,12 +169,28 @@ export function initCallBridge(): void {
   callService.setCallbacks({
     onLocalStream: (s) => useCallStore.setState({ localStream: s }),
     onRemoteStream: (s) => useCallStore.setState({ remoteStream: s }),
+    // 'connected' dari LiveKit berarti KITA tersambung ke server -- bukan
+    // lawan bicara sudah bergabung. Penanda phase:'active' yang sebenarnya
+    // ada di onPeerJoined. Di sini hanya bersihkan status reconnecting.
     onConnectionState: (st) => {
-      if (st === 'connected') useCallStore.setState({ phase: 'active' })
+      if (st === 'connected') useCallStore.setState({ reconnecting: false })
+      if (st === 'disconnected' && useCallStore.getState().phase === 'active') {
+        useCallStore.setState({ reconnecting: true })
+      }
+    },
+    onReconnecting: () => useCallStore.setState({ reconnecting: true }),
+    onPeerJoined: () => useCallStore.setState({ phase: 'active', reconnecting: false }),
+    onPeerLeft: () => {
+      if (useCallStore.getState().phase === 'active') {
+        useCallStore.setState({ error: 'Lawan bicara terputus, menunggu...' })
+      }
     },
     onError: (msg) => useCallStore.setState({ error: msg }),
   })
 
+  wsService.on<{ callId: string; conversationId: string; callType: CallType }>('call_created', (p) => {
+    void useCallStore.getState().onCreated(p.callId, p.callType)
+  })
   wsService.on<WsCallIncomingPayload>('call_incoming', (p) => useCallStore.getState().incoming(p))
   wsService.on<WsCallAcceptedPayload>('call_accepted', (p) => { void useCallStore.getState().onAccepted(p) })
   wsService.on<WsCallEndedPayload>('call_rejected', (p) => useCallStore.getState().onEnded(p, true))

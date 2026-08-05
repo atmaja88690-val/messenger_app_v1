@@ -10,6 +10,7 @@ export default function CallOverlay(): React.JSX.Element | null {
   const micOn = useCallStore((s) => s.micOn)
   const camOn = useCallStore((s) => s.camOn)
   const error = useCallStore((s) => s.error)
+  const reconnecting = useCallStore((s) => s.reconnecting)
   const accept = useCallStore((s) => s.accept)
   const reject = useCallStore((s) => s.reject)
   const hangup = useCallStore((s) => s.hangup)
@@ -35,12 +36,75 @@ export default function CallOverlay(): React.JSX.Element | null {
 
   const isVideo = callType === 'VIDEO'
   const name = peer?.displayName ?? 'Pengguna'
+  const isActiveOrCalling = phase === 'calling' || phase === 'active'
 
   const label =
     phase === 'calling' ? 'Memanggil...'
       : phase === 'ringing' ? (isVideo ? 'Panggilan video masuk' : 'Panggilan suara masuk')
-      : phase === 'active' ? 'Tersambung'
+      : phase === 'active' ? (reconnecting ? 'Menghubungkan ulang...' : 'Tersambung')
       : 'Panggilan berakhir'
+
+  // Video yang sudah/sedang berjalan -> layar penuh. Ringing (video/voice) dan voice call -> kartu.
+  const useFullscreenVideo = isVideo && isActiveOrCalling
+
+  if (useFullscreenVideo) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black">
+        <video ref={remoteRef} autoPlay playsInline className="h-full w-full object-cover" />
+        <video
+          ref={localRef}
+          autoPlay
+          playsInline
+          muted
+          className="absolute right-4 top-4 h-32 w-24 rounded-lg border border-white/20 object-cover shadow-lg sm:h-40 sm:w-28"
+        />
+
+        <div className="absolute left-0 right-0 top-0 flex flex-col items-center gap-1 bg-gradient-to-b from-black/70 to-transparent px-4 pb-8 pt-4 text-white">
+          <h3 className="text-lg font-semibold">{name}</h3>
+          <p className="text-sm text-slate-200">{label}</p>
+          {reconnecting && (
+            <span className="mt-1 flex items-center gap-1.5 rounded-full bg-amber-600/90 px-3 py-1 text-xs font-medium">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+              Menghubungkan ulang...
+            </span>
+          )}
+        </div>
+
+        {error !== null && (
+          <p className="absolute left-1/2 top-24 -translate-x-1/2 rounded-lg bg-red-900/80 px-3 py-2 text-center text-sm text-red-100">
+            {error}
+          </p>
+        )}
+
+        <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-4 bg-gradient-to-t from-black/70 to-transparent px-4 pb-8 pt-10">
+          <button
+            type="button"
+            onClick={toggleMic}
+            aria-label={micOn ? 'Matikan mikrofon' : 'Nyalakan mikrofon'}
+            className={'flex h-14 w-14 items-center justify-center rounded-full text-white ' + (micOn ? 'bg-white/20 hover:bg-white/30' : 'bg-red-600 hover:bg-red-500')}
+          >
+            {micOn ? 'Mic' : 'Mic off'}
+          </button>
+          <button
+            type="button"
+            onClick={toggleCam}
+            aria-label={camOn ? 'Matikan kamera' : 'Nyalakan kamera'}
+            className={'flex h-14 w-14 items-center justify-center rounded-full text-white ' + (camOn ? 'bg-white/20 hover:bg-white/30' : 'bg-red-600 hover:bg-red-500')}
+          >
+            {camOn ? 'Cam' : 'Cam off'}
+          </button>
+          <button
+            type="button"
+            onClick={hangup}
+            aria-label="Tutup panggilan"
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-500"
+          >
+            Tutup
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -48,23 +112,16 @@ export default function CallOverlay(): React.JSX.Element | null {
         <div className="mb-4 text-center">
           <h3 className="text-xl font-semibold">{name}</h3>
           <p className="text-sm text-slate-300">{label}</p>
+          {reconnecting && phase === 'active' && (
+            <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-600/90 px-3 py-1 text-xs font-medium">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+              Menghubungkan ulang...
+            </span>
+          )}
         </div>
 
-        {isVideo && (phase === 'active' || phase === 'calling') && (
-          <div className="relative mb-4 overflow-hidden rounded-xl bg-black" style={{ aspectRatio: '4 / 3' }}>
-            <video ref={remoteRef} autoPlay playsInline className="h-full w-full object-cover" />
-            <video
-              ref={localRef}
-              autoPlay
-              playsInline
-              muted
-              className="absolute bottom-2 right-2 h-24 w-32 rounded-lg border border-slate-600 object-cover"
-            />
-          </div>
-        )}
-
-        {isVideo === false && <video ref={remoteRef} autoPlay playsInline className="hidden" />}
-        {isVideo === false && <video ref={localRef} autoPlay playsInline muted className="hidden" />}
+        <video ref={remoteRef} autoPlay playsInline className="hidden" />
+        <video ref={localRef} autoPlay playsInline muted className="hidden" />
 
         {error !== null && (
           <p className="mb-3 rounded-lg bg-red-900/60 p-2 text-center text-sm text-red-200">{error}</p>
@@ -90,7 +147,7 @@ export default function CallOverlay(): React.JSX.Element | null {
             </>
           )}
 
-          {(phase === 'calling' || phase === 'active') && (
+          {isActiveOrCalling && (
             <>
               <button
                 type="button"
@@ -100,16 +157,6 @@ export default function CallOverlay(): React.JSX.Element | null {
               >
                 {micOn ? 'Mic' : 'Mic off'}
               </button>
-              {isVideo && (
-                <button
-                  type="button"
-                  onClick={toggleCam}
-                  aria-label={camOn ? 'Matikan kamera' : 'Nyalakan kamera'}
-                  className={'rounded-full px-4 py-3 ' + (camOn ? 'bg-slate-600 hover:bg-slate-500' : 'bg-red-600 hover:bg-red-500')}
-                >
-                  {camOn ? 'Cam' : 'Cam off'}
-                </button>
-              )}
               <button
                 type="button"
                 onClick={hangup}

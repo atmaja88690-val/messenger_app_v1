@@ -1,11 +1,8 @@
 // Dev: path relatif → lewat Vite proxy (same-origin, no CORS, backend tak disentuh).
 // Prod (.exe terpaket): absolut ke backend langsung.
-const DEV = import.meta.env.DEV
 
-export const API_URL = DEV ? '/api' : 'https://chat.bsilongevity.com:4443/api'
-export const WS_URL = DEV
-  ? `ws://${location.host}/ws`
-  : 'wss://chat.bsilongevity.com:4443/ws'
+export const API_URL = '/api'
+export const WS_URL = `ws://${location.host}/ws`
 
 export const TOKEN_KEY = 'bsi_access_token'
 export const REFRESH_KEY = 'bsi_refresh_token'
@@ -25,7 +22,5 @@ export const APP_VERSION = '1.0.0'
 export const APP_COPYRIGHT = `© ${new Date().getFullYear()} BSI International. All rights reserved.`
 
 // URL server penuh untuk ditampilkan (read-only) di Settings.
-// Dev: origin Vite dev server (mis. http://localhost:5173). Prod: origin dari API_URL.
-export const SERVER_URL = DEV
-  ? location.origin
-  : new URL(API_URL).origin
+// Selalu location.origin -- API selalu same-origin sekarang (relatif), baik dev maupun prod.
+export const SERVER_URL = location.origin

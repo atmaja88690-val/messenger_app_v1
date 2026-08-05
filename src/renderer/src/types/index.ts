@@ -94,7 +94,7 @@ export type WsEventType =
   | 'connected' | 'new_message' | 'message_ack' | 'typing' | 'presence' | 'pong' | 'receipt' | 'error'
   // Call signaling (WebRTC P2P 1:1) -- cermin WS_EVENTS backend
   | 'call_invite' | 'call_answer' | 'call_reject' | 'call_ice' | 'call_end'
-  | 'call_incoming' | 'call_accepted' | 'call_rejected' | 'call_ended'
+  | 'call_created' | 'call_incoming' | 'call_accepted' | 'call_rejected' | 'call_ended'
 
 export type CallType = 'AUDIO' | 'VIDEO'
 export type CallState = 'RINGING' | 'ACTIVE' | 'ENDED' | 'MISSED'
