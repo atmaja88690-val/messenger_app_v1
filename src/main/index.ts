@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, Menu, dialog, clipboard, nativeImag
 import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { startLocalServer } from './local-server'
 import icon from '../../resources/icon.png?asset'
 
 let mainWindow: BrowserWindow | null = null
@@ -9,6 +10,8 @@ let tray: Tray | null = null
 // Bedakan "user menutup window" (-> sembunyi ke tray) dari "app benar-benar keluar".
 // Tanpa flag ini, menu Keluar di tray ikut tercegat dan app tidak pernah bisa ditutup.
 let isQuitting = false
+// URL server proxy lokal (127.0.0.1:<port>), diisi startLocalServer() sebelum createWindow().
+let localServerUrl: string | null = null
 
 function createTray(): void {
   if (tray) return
@@ -197,7 +200,12 @@ function createWindow(): void {
   // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  } else if (localServerUrl) {
+    mainWindow.loadURL(localServerUrl)
   } else {
+    // Fallback darurat -- proxy lokal gagal start. App tetap bisa dibuka untuk
+    // debugging, tapi API/WS kemungkinan gagal karena origin file:// / CORS.
+    console.error('[main] Proxy lokal gagal start -- fallback loadFile (API/WS berisiko gagal)')
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
@@ -205,7 +213,7 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.bsi.messenger')
 
@@ -330,6 +338,16 @@ app.whenReady().then(() => {
     mainWindow.show()
     mainWindow.focus()
   })
+
+  // Proxy lokal HANYA untuk production build -- dev sudah punya proxy Vite sendiri.
+  if (!is.dev) {
+    try {
+      localServerUrl = await startLocalServer(join(__dirname, '../renderer'))
+      console.log('[main] Proxy lokal aktif:', localServerUrl)
+    } catch (err) {
+      console.error('[main] Gagal start proxy lokal:', err)
+    }
+  }
 
   buildMenu()
   createWindow()
