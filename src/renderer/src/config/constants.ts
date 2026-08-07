@@ -1,8 +1,17 @@
+import { Capacitor } from '@capacitor/core'
+
 // Dev: path relatif → lewat Vite proxy (same-origin, no CORS, backend tak disentuh).
 // Prod (.exe terpaket): absolut ke backend langsung.
 
-export const API_URL = '/api'
-export const WS_URL = `ws://${location.host}/ws`
+const IS_NATIVE = Capacitor.isNativePlatform()
+const NATIVE_BACKEND = 'https://chat.bsilongevity.com:4443'
+
+// Native (Android/iOS Capacitor): tak ada proxy lokal, wajib absolut ke backend.
+// Desktop (Electron) & dev: relatif lewat local-server / Vite proxy.
+export const API_URL = IS_NATIVE ? `${NATIVE_BACKEND}/api` : '/api'
+export const WS_URL = IS_NATIVE
+  ? 'wss://chat.bsilongevity.com:4443/ws'
+  : `ws://${location.host}/ws`
 
 export const TOKEN_KEY = 'bsi_access_token'
 export const REFRESH_KEY = 'bsi_refresh_token'
@@ -23,4 +32,4 @@ export const APP_COPYRIGHT = `© ${new Date().getFullYear()} BSI International. 
 
 // URL server penuh untuk ditampilkan (read-only) di Settings.
 // Selalu location.origin -- API selalu same-origin sekarang (relatif), baik dev maupun prod.
-export const SERVER_URL = location.origin
+export const SERVER_URL = IS_NATIVE ? NATIVE_BACKEND : location.origin
