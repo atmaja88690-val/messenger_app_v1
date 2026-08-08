@@ -86,7 +86,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
       setNewPass('')
       setConfirmPass('')
     } catch {
-      setPwError('Gagal mengubah password. Coba lagi.')
+      setPwError('Failed to change password. Please try again.')
     } finally {
       setPwSaving(false)
     }

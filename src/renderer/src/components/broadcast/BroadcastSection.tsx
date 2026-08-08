@@ -11,8 +11,8 @@ export default function BroadcastSection() {
         </svg>
       }
       title="Broadcast WhatsApp"
-      description="Kirim pesan template resmi ke ribuan kontak secara bertahap dan aman. Hubungkan WhatsApp Business dan ajukan template untuk memulai campaign."
-      ctaLabel="Hubungkan WhatsApp Business"
+      description="Send official message templates to thousands of contacts gradually and safely. Connect WhatsApp Business and submit templates to start a campaign."
+      ctaLabel="Connect WhatsApp Business"
       onCta={() => {}}
       ctaDisabled
     />

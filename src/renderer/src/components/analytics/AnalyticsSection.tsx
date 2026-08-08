@@ -13,8 +13,8 @@ export default function AnalyticsSection() {
         </svg>
       }
       title="Analytics & Laporan"
-      description="Pantau open rate, reply rate, kinerja agent, dan hasil campaign broadcast. Data muncul setelah channel terhubung dan ada aktivitas."
-      ctaLabel="Hubungkan WhatsApp Business"
+      description="Track open rate, reply rate, agent performance, and broadcast campaign results. Data appears once a channel is connected and there is activity."
+      ctaLabel="Connect WhatsApp Business"
       onCta={() => {}}
       ctaDisabled
     />

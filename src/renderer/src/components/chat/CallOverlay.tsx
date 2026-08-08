@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { useCallStore } from '../../stores/call.store'
+import { IconMic, IconMicOff, IconVideo, IconVideoOff, IconPhoneOff } from './CallIcons'
 
 export default function CallOverlay(): React.JSX.Element | null {
   const phase = useCallStore((s) => s.phase)
@@ -35,14 +36,14 @@ export default function CallOverlay(): React.JSX.Element | null {
   if (phase === 'idle') return null
 
   const isVideo = callType === 'VIDEO'
-  const name = peer?.displayName ?? 'Pengguna'
+  const name = peer?.displayName ?? 'User'
   const isActiveOrCalling = phase === 'calling' || phase === 'active'
 
   const label =
-    phase === 'calling' ? 'Memanggil...'
-      : phase === 'ringing' ? (isVideo ? 'Panggilan video masuk' : 'Panggilan suara masuk')
-      : phase === 'active' ? (reconnecting ? 'Menghubungkan ulang...' : 'Tersambung')
-      : 'Panggilan berakhir'
+    phase === 'calling' ? 'Calling...'
+      : phase === 'ringing' ? (isVideo ? 'Incoming video call' : 'Incoming voice call')
+      : phase === 'active' ? (reconnecting ? 'Reconnecting...' : 'Connected')
+      : 'Call ended'
 
   // Video yang sudah/sedang berjalan -> layar penuh. Ringing (video/voice) dan voice call -> kartu.
   const useFullscreenVideo = isVideo && isActiveOrCalling
@@ -65,7 +66,7 @@ export default function CallOverlay(): React.JSX.Element | null {
           {reconnecting && (
             <span className="mt-1 flex items-center gap-1.5 rounded-full bg-amber-600/90 px-3 py-1 text-xs font-medium">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-              Menghubungkan ulang...
+              Reconnecting...
             </span>
           )}
         </div>
@@ -80,26 +81,26 @@ export default function CallOverlay(): React.JSX.Element | null {
           <button
             type="button"
             onClick={toggleMic}
-            aria-label={micOn ? 'Matikan mikrofon' : 'Nyalakan mikrofon'}
+            aria-label={micOn ? 'Mute microphone' : 'Unmute microphone'}
             className={'flex h-14 w-14 items-center justify-center rounded-full text-white ' + (micOn ? 'bg-white/20 hover:bg-white/30' : 'bg-red-600 hover:bg-red-500')}
           >
-            {micOn ? 'Mic' : 'Mic off'}
+            {micOn ? <IconMic /> : <IconMicOff />}
           </button>
           <button
             type="button"
             onClick={toggleCam}
-            aria-label={camOn ? 'Matikan kamera' : 'Nyalakan kamera'}
+            aria-label={camOn ? 'Turn off camera' : 'Turn on camera'}
             className={'flex h-14 w-14 items-center justify-center rounded-full text-white ' + (camOn ? 'bg-white/20 hover:bg-white/30' : 'bg-red-600 hover:bg-red-500')}
           >
-            {camOn ? 'Cam' : 'Cam off'}
+            {camOn ? <IconVideo /> : <IconVideoOff />}
           </button>
           <button
             type="button"
             onClick={hangup}
-            aria-label="Tutup panggilan"
+            aria-label="End call"
             className="flex h-16 w-16 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-500"
           >
-            Tutup
+            <IconPhoneOff />
           </button>
         </div>
       </div>
@@ -115,7 +116,7 @@ export default function CallOverlay(): React.JSX.Element | null {
           {reconnecting && phase === 'active' && (
             <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-amber-600/90 px-3 py-1 text-xs font-medium">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-              Menghubungkan ulang...
+              Reconnecting...
             </span>
           )}
         </div>
@@ -135,14 +136,14 @@ export default function CallOverlay(): React.JSX.Element | null {
                 onClick={() => { void accept() }}
                 className="rounded-full bg-green-600 px-6 py-3 font-medium hover:bg-green-500"
               >
-                Terima
+                Accept
               </button>
               <button
                 type="button"
                 onClick={reject}
                 className="rounded-full bg-red-600 px-6 py-3 font-medium hover:bg-red-500"
               >
-                Tolak
+                Decline
               </button>
             </>
           )}
@@ -152,17 +153,17 @@ export default function CallOverlay(): React.JSX.Element | null {
               <button
                 type="button"
                 onClick={toggleMic}
-                aria-label={micOn ? 'Matikan mikrofon' : 'Nyalakan mikrofon'}
+                aria-label={micOn ? 'Mute microphone' : 'Unmute microphone'}
                 className={'rounded-full px-4 py-3 ' + (micOn ? 'bg-slate-600 hover:bg-slate-500' : 'bg-red-600 hover:bg-red-500')}
               >
-                {micOn ? 'Mic' : 'Mic off'}
+                {micOn ? <IconMic /> : <IconMicOff />}
               </button>
               <button
                 type="button"
                 onClick={hangup}
                 className="rounded-full bg-red-600 px-6 py-3 font-medium hover:bg-red-500"
               >
-                Tutup
+                <IconPhoneOff />
               </button>
             </>
           )}
