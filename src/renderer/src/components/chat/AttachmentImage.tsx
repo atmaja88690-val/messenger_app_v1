@@ -114,7 +114,7 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const r = new FileReader()
         r.onloadend = () => resolve(String(r.result))
-        r.onerror = () => reject(new Error('gagal membaca gambar'))
+        r.onerror = () => reject(new Error('Failed to read image'))
         r.readAsDataURL(blob)
       })
       const name = attachment.fileName || `image-${Date.now()}.png`

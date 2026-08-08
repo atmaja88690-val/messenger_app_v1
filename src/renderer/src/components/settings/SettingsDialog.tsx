@@ -226,7 +226,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
                       />
                     </div>
                     {pwError && <p className="text-red-400 text-sm">{pwError}</p>}
-                    {pwSuccess && <p className="text-green-400 text-sm">Password berhasil diubah.</p>}
+                    {pwSuccess && <p className="text-green-400 text-sm">Password changed successfully.</p>}
                     <button
                       onClick={handleChangePassword}
                       disabled={pwSaving}

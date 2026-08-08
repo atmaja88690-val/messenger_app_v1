@@ -247,8 +247,8 @@ export default function AdminPage() {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 gap-3">
         <div className="text-gray-900 text-lg font-medium">Access denied</div>
-        <div className="text-gray-500 text-sm">Halaman ini hanya untuk administrator.</div>
-        <button onClick={() => navigate({ to: '/' })} className="mt-2 px-4 py-2 bg-[#4aa3df] text-white rounded-lg text-sm">Kembali ke chat</button>
+        <div className="text-gray-500 text-sm">This page is for administrators only.</div>
+        <button onClick={() => navigate({ to: '/' })} className="mt-2 px-4 py-2 bg-[#4aa3df] text-white rounded-lg text-sm">Back to chat</button>
       </div>
     )
   }
@@ -261,8 +261,8 @@ export default function AdminPage() {
       <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
         <h1 className="text-lg font-semibold text-gray-900">Admin Dashboard</h1>
         <div className="flex items-center gap-2">
-          <button onClick={() => { setShowCreate(true); setError(null) }} className="px-3 py-1.5 text-sm bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg">+ Tambah user</button>
-          <button onClick={() => navigate({ to: '/' })} className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg">Kembali ke chat</button>
+          <button onClick={() => { setShowCreate(true); setError(null) }} className="px-3 py-1.5 text-sm bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg">+ Add user</button>
+          <button onClick={() => navigate({ to: '/' })} className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg">Back to chat</button>
         </div>
       </div>
 

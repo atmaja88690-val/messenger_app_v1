@@ -114,7 +114,7 @@ export default function NewChatDialog({ onClose }: { onClose: () => void }) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari nama atau username..."
+            placeholder="Search name or username..."
             className="w-full px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border focus:border-[#4aa3df]"
           />
         </div>
@@ -122,8 +122,8 @@ export default function NewChatDialog({ onClose }: { onClose: () => void }) {
         {error && <div className="mx-4 mb-2 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg">{error}</div>}
 
         <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-[180px]">
-          {loading && <div className="p-4 text-sm text-gray-400">Memuat...</div>}
-          {!loading && users.length === 0 && <div className="p-4 text-sm text-gray-400">Tidak ada user</div>}
+          {loading && <div className="p-4 text-sm text-gray-400">Loading...</div>}
+          {!loading && users.length === 0 && <div className="p-4 text-sm text-gray-400">No users</div>}
           {!loading && users.map((u) => {
             const checked = picked.has(u.id)
             return (
@@ -160,7 +160,7 @@ export default function NewChatDialog({ onClose }: { onClose: () => void }) {
             {tab === 'group' ? `${picked.size} selected` : 'Klik nama untuk mulai chat'}
           </span>
           <div className="flex gap-2">
-            <button disabled={busy} onClick={onClose} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600">Batal</button>
+            <button disabled={busy} onClick={onClose} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600">Cancel</button>
             {tab === 'group' && (
               <button
                 disabled={busy || !title.trim() || picked.size < 1}
