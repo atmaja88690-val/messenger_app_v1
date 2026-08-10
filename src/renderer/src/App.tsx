@@ -12,6 +12,7 @@ import NewUserDialog from './components/users/NewUserDialog'
 import SettingsDialog from './components/settings/SettingsDialog'
 import UserProfileDialog from './components/users/UserProfileDialog'
 import AboutDialog from './components/settings/AboutDialog'
+import AppMenu from './components/AppMenu'
 import { registerPushAndroid } from './services/push-android.service'
 import { initCallBridge } from './stores/call.store'
 
@@ -21,13 +22,6 @@ initCallBridge()
 
 type Section = 'chats' | 'inbox' | 'broadcast' | 'templates' | 'analytics'
 
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: 'chats', label: 'Chats' },
-  { id: 'inbox', label: 'Inbox' },
-  { id: 'broadcast', label: 'Broadcast' },
-  { id: 'templates', label: 'Templates' },
-  { id: 'analytics', label: 'Analytics' }
-]
 
 function App() {
   const navigate = useNavigate()
@@ -37,7 +31,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
-  const [activeSection, setActiveSection] = useState<Section>('chats')
+  const [activeSection] = useState<Section>('chats')
   // Mobile (<md): tampilkan SATU view bergantian (daftar <-> ruang chat).
   // Desktop abaikan ini (kolom tampil berdampingan lewat breakpoint md:).
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
@@ -117,33 +111,13 @@ function App() {
     <div className="flex flex-col w-full h-full bg-gray-900 text-white">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-700 flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          {/* Menu section (hamburger) -- menggantikan dropdown select */}
-          <div ref={menuRef} className="relative flex-shrink-0">
-            <button
-              type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              aria-label="Menu"
-              className="p-1.5 rounded-md hover:bg-gray-700 text-gray-200"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></svg>
-            </button>
-            {menuOpen && (
-              <div className="absolute left-0 top-full mt-1 w-44 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-30 py-1">
-                {SECTIONS.map((sec) => (
-                  <button
-                    key={sec.id}
-                    type="button"
-                    onClick={() => { setActiveSection(sec.id); setMenuOpen(false) }}
-                    className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                      activeSection === sec.id ? 'bg-gray-700 text-white' : 'text-gray-300 hover:bg-gray-700'
-                    }`}
-                  >
-                    {sec.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Menu aplikasi (hamburger) — File/View/Tools/Help */}
+          <AppMenu
+            onSettings={() => setShowSettings(true)}
+            onProfile={() => setShowProfile(true)}
+            onAbout={() => setShowAbout(true)}
+            onLogout={handleLogout}
+          />
           <span className="font-semibold truncate">BSI Messenger</span>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-400 flex-shrink-0">
