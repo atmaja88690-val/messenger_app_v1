@@ -18,6 +18,7 @@ import {
   scheduleProactiveRefresh,
   clearProactiveRefresh
 } from '../services/token-scheduler.service'
+import { Preferences } from '@capacitor/preferences'
 
 interface AuthState {
   user: User | null
@@ -44,6 +45,7 @@ function startProactiveRefreshCycle(accessToken: string): void {
     try {
       const { data } = await authApi.refresh(refreshToken)
       localStorage.setItem(TOKEN_KEY, data.accessToken)
+      Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
       localStorage.setItem(REFRESH_KEY, data.refreshToken)
 
       wsService.disconnect()
@@ -103,6 +105,7 @@ export const useAuthStore = create<AuthState>((set) => {
       try {
         const { data } = await authApi.login(username, password)
         localStorage.setItem(TOKEN_KEY, data.accessToken)
+      Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
         localStorage.setItem(REFRESH_KEY, data.refreshToken)
         set({ user: data.user, isAuthenticated: true, isLoading: false })
         wsService.connect()
