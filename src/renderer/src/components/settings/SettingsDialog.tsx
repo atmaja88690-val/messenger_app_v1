@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { isEnabled } from '../../services/notification.service'
 import { NOTIF_ENABLED_KEY, NOTIF_SOUND_KEY, SERVER_URL } from '../../config/constants'
 import { authApi } from '../../services/api.service'
@@ -23,6 +24,7 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function SettingsDialog({ onClose }: SettingsDialogProps) {
   const [settings, setSettings] = useState<Settings>({ downloadDir: null, openAtLogin: false })
+  const isNative = Capacitor.isNativePlatform()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -128,6 +130,8 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
               <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
                 {activeTab === 'general' && (
                   <>
+                    {!isNative ? (
+                      <>
                     <div className="flex flex-col gap-1">
                       <label className="text-gray-300 text-sm">Server</label>
                       <input
@@ -152,6 +156,10 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
                         </button>
                       </div>
                     </div>
+                      </>
+                    ) : (
+                      <p className="text-gray-400 text-sm">Managed by administrator.</p>
+                    )}
                   </>
                 )}
 

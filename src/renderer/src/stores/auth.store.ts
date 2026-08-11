@@ -133,13 +133,17 @@ export const useAuthStore = create<AuthState>((set) => {
       const token = localStorage.getItem(TOKEN_KEY)
       if (!token) return
 
+      // WS dibuka SEGERA, paralel dgn /users/me -- token di localStorage sudah
+      // cukup utk WS auth sendiri. Kalau /users/me gagal (token invalid), blok
+      // catch di bawah men-disconnect lagi -- tak ada risiko identitas salah.
+      wsService.connect()
+
       set({ isLoading: true })
       try {
         const { data } = await usersApi.me()
         // TODO (Langkah 8): verifikasi shape — data.user atau data langsung?
         // Konfirmasi: curl -H "Authorization: Bearer <token>" GET /api/users/me
         set({ user: data.user, isAuthenticated: true, isLoading: false })
-        wsService.connect()
         startProactiveRefreshCycle(token)
       } catch {
         wsService.disconnect()

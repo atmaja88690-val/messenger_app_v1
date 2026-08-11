@@ -25,13 +25,13 @@ export default function CallOverlay(): React.JSX.Element | null {
     if (localRef.current !== null && localStream !== null) {
       localRef.current.srcObject = localStream
     }
-  }, [localStream])
+  }, [localStream, phase])
 
   useEffect(() => {
     if (remoteRef.current !== null && remoteStream !== null) {
       remoteRef.current.srcObject = remoteStream
     }
-  }, [remoteStream])
+  }, [remoteStream, phase])
 
   if (phase === 'idle') return null
 
