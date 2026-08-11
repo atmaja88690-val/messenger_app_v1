@@ -18,6 +18,7 @@ import {
   scheduleProactiveRefresh,
   clearProactiveRefresh
 } from '../services/token-scheduler.service'
+import { Preferences } from '@capacitor/preferences'
 
 interface AuthState {
   user: User | null
@@ -44,6 +45,7 @@ function startProactiveRefreshCycle(accessToken: string): void {
     try {
       const { data } = await authApi.refresh(refreshToken)
       localStorage.setItem(TOKEN_KEY, data.accessToken)
+      Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
       localStorage.setItem(REFRESH_KEY, data.refreshToken)
 
       wsService.disconnect()
@@ -103,6 +105,7 @@ export const useAuthStore = create<AuthState>((set) => {
       try {
         const { data } = await authApi.login(username, password)
         localStorage.setItem(TOKEN_KEY, data.accessToken)
+      Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
         localStorage.setItem(REFRESH_KEY, data.refreshToken)
         set({ user: data.user, isAuthenticated: true, isLoading: false })
         wsService.connect()
@@ -133,13 +136,17 @@ export const useAuthStore = create<AuthState>((set) => {
       const token = localStorage.getItem(TOKEN_KEY)
       if (!token) return
 
+      // WS dibuka SEGERA, paralel dgn /users/me -- token di localStorage sudah
+      // cukup utk WS auth sendiri. Kalau /users/me gagal (token invalid), blok
+      // catch di bawah men-disconnect lagi -- tak ada risiko identitas salah.
+      wsService.connect()
+
       set({ isLoading: true })
       try {
         const { data } = await usersApi.me()
         // TODO (Langkah 8): verifikasi shape — data.user atau data langsung?
         // Konfirmasi: curl -H "Authorization: Bearer <token>" GET /api/users/me
         set({ user: data.user, isAuthenticated: true, isLoading: false })
-        wsService.connect()
         startProactiveRefreshCycle(token)
       } catch {
         wsService.disconnect()

@@ -41,15 +41,15 @@ class CallService {
   private mapMediaError(err: unknown): Error {
     const name = (err as { name?: string })?.name
     if (name === 'NotAllowedError') {
-      return new Error('Izin kamera/mikrofon ditolak. Buka Settings > Privacy > Camera & Microphone, izinkan BSI Messenger.')
+      return new Error('Camera/microphone permission denied. Open Settings > Privacy > Camera & Microphone and allow BSI Messenger.')
     }
     if (name === 'NotFoundError') {
-      return new Error('Kamera atau mikrofon tidak ditemukan di perangkat ini.')
+      return new Error('No camera or microphone found on this device.')
     }
     if (name === 'NotReadableError') {
-      return new Error('Kamera/mikrofon sedang dipakai aplikasi lain.')
+      return new Error('Camera/microphone is in use by another app.')
     }
-    return new Error('Gagal mengakses kamera/mikrofon: ' + String(name ?? err))
+    return new Error('Failed to access camera/microphone: ' + String(name ?? err))
   }
 
   private async fetchToken(callId: string): Promise<TokenResponse> {

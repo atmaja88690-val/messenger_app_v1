@@ -135,7 +135,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
   onEnded: (_p, missed) => {
     callService.cleanup()
     pendingIncoming = null
-    set({ ...initial, phase: 'ended', error: missed ? 'Panggilan tidak dijawab' : null })
+    set({ ...initial, phase: 'ended', error: missed ? 'No answer' : null })
     setTimeout(() => {
       if (useCallStore.getState().phase === 'ended') useCallStore.getState().reset()
     }, 2000)
@@ -182,7 +182,7 @@ export function initCallBridge(): void {
     onPeerJoined: () => useCallStore.setState({ phase: 'active', reconnecting: false }),
     onPeerLeft: () => {
       if (useCallStore.getState().phase === 'active') {
-        useCallStore.setState({ error: 'Lawan bicara terputus, menunggu...' })
+        useCallStore.setState({ error: 'Other party disconnected, waiting...' })
       }
     },
     onError: (msg) => useCallStore.setState({ error: msg }),

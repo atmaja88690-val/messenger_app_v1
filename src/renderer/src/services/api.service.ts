@@ -6,6 +6,7 @@ import {
   clearProactiveRefresh,
   setRefreshing
 } from './token-scheduler.service'
+import { Preferences } from '@capacitor/preferences'
 
 const api: AxiosInstance = axios.create({
   baseURL: API_URL,
@@ -63,6 +64,7 @@ async function performTokenRefresh(): Promise<string | null> {
       { timeout: 15000 }
     )
     localStorage.setItem(TOKEN_KEY, data.accessToken)
+      Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
     localStorage.setItem(REFRESH_KEY, data.refreshToken)
 
     scheduleProactiveRefresh(data.accessToken, async () => {

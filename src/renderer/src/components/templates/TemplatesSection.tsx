@@ -12,9 +12,9 @@ export default function TemplatesSection() {
           <path d="M8 17h5" />
         </svg>
       }
-      title="Template Pesan"
-      description="Kelola template pesan WhatsApp yang disetujui Meta (UTILITY, MARKETING, AUTHENTICATION). Template diperlukan untuk pesan keluar di luar jendela 24 jam."
-      ctaLabel="Hubungkan WhatsApp Business"
+      title="Message Templates"
+      description="Manage Meta-approved WhatsApp message templates (UTILITY, MARKETING, AUTHENTICATION). Templates are required for outbound messages outside the 24-hour window."
+      ctaLabel="Connect WhatsApp Business"
       onCta={() => {}}
       ctaDisabled
     />

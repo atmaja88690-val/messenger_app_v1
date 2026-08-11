@@ -12,8 +12,8 @@ export default function InboxSection() {
         </svg>
       }
       title="Inbox omnichannel"
-      description="Percakapan WhatsApp, Instagram, dan webchat akan muncul di sini. Hubungkan akun WhatsApp Business untuk mulai menerima pesan."
-      ctaLabel="Hubungkan WhatsApp Business"
+      description="WhatsApp, Instagram, and webchat conversations will appear here. Connect a WhatsApp Business account to start receiving messages."
+      ctaLabel="Connect WhatsApp Business"
       onCta={() => {}}
       ctaDisabled
     />

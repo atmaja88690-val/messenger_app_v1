@@ -86,14 +86,14 @@ function UserContextMenu({ u, x, y, isSelf, onClose, onEdit, onToggleActive, onT
         <div className="px-3 py-2 border-b border-gray-100">
           <div className="text-sm font-semibold text-gray-900 truncate">{u.displayName}</div>
           <div className="text-xs text-gray-500 truncate">@{u.username}</div>
-          {isMod && <div className="mt-1 text-xs text-amber-700">Akun moderator - terkunci permanen</div>}
+          {isMod && <div className="mt-1 text-xs text-amber-700">Moderator account - permanently locked</div>}
         </div>
         <CtxItem icon="*" label={u.accountType === 'ADMIN' ? 'Cabut admin' : 'Jadikan admin'} disabled={locked} onClick={wrap(onToggleAdmin)} />
         <CtxItem icon="E" label="Edit profil" disabled={locked} onClick={wrap(onEdit)} />
         <CtxItem icon="K" label="Reset password" disabled={deleted || isMod} onClick={wrap(onPassword)} />
-        <CtxItem icon="O" label={u.isActive ? 'Nonaktifkan' : 'Aktifkan'} disabled={locked} onClick={wrap(onToggleActive)} />
+        <CtxItem icon="O" label={u.isActive ? 'Deactivate' : 'Activate'} disabled={locked} onClick={wrap(onToggleActive)} />
         <div className="my-1 border-t border-gray-100" />
-        <CtxItem icon="X" label="Hapus user" danger disabled={locked} onClick={wrap(onDelete)} />
+        <CtxItem icon="X" label="Delete user" danger disabled={locked} onClick={wrap(onDelete)} />
       </div>
     </>
   )
@@ -136,10 +136,10 @@ export default function AdminPage() {
   const actionButtons = (u: AdminUser, locked: boolean, deleted: boolean, isMod: boolean) => (
     <div className="flex items-center justify-end gap-1.5 flex-wrap">
       <button disabled={locked} onClick={() => openEdit(u)} className={actBtn}>Edit</button>
-      <button disabled={locked} onClick={() => toggleActive(u)} className={actBtn}>{u.isActive ? 'Nonaktifkan' : 'Aktifkan'}</button>
+      <button disabled={locked} onClick={() => toggleActive(u)} className={actBtn}>{u.isActive ? 'Deactivate' : 'Activate'}</button>
       <button disabled={locked} onClick={() => toggleAdmin(u)} className={actBtn}>{u.accountType === 'ADMIN' ? 'Cabut admin' : 'Jadikan admin'}</button>
       <button disabled={deleted || isMod || busyId === u.id} onClick={() => { setPwUser(u); setPw1(''); setPw2(''); setError(null) }} className={actBtn}>Password</button>
-      <button disabled={locked} onClick={() => { setDelUser(u); setDelConfirm(''); setError(null) }} className={actBtnDanger}>Hapus</button>
+      <button disabled={locked} onClick={() => { setDelUser(u); setDelConfirm(''); setError(null) }} className={actBtnDanger}>Delete</button>
     </div>
   )
   const isAdmin = me?.accountType === 'ADMIN' || me?.accountType === 'MODERATOR'
@@ -149,7 +149,7 @@ export default function AdminPage() {
     try {
       const { data } = await adminApi.listUsers({ page, limit: PAGE_SIZE, search: search || undefined })
       setUsers(data.users ?? []); setTotal(data.total ?? 0)
-    } catch { setError('Gagal memuat daftar user') } finally { setLoading(false) }
+    } catch { setError('Failed to load user list') } finally { setLoading(false) }
   }
   const loadStats = async () => {
     try { const { data } = await adminApi.stats(); setStats(data ?? {}) } catch { /* opsional */ }
@@ -164,21 +164,21 @@ export default function AdminPage() {
 
   const toggleActive = async (u: AdminUser) => {
     if (u.id === me?.id) return
-    if (u.isActive && !confirm(`Nonaktifkan ${u.displayName}? Ia tidak akan bisa login.`)) return
+    if (u.isActive && !confirm(`Deactivate ${u.displayName}? They will not be able to log in.`)) return
     setBusyId(u.id)
     try {
       if (u.isActive) await adminApi.deactivate(u.id); else await adminApi.activate(u.id)
       await refresh()
-    } catch (e) { setError(errMsg(e, 'Aksi gagal')) } finally { setBusyId(null) }
+    } catch (e) { setError(errMsg(e, 'Action failed')) } finally { setBusyId(null) }
   }
 
   const toggleAdmin = async (u: AdminUser) => {
     if (u.id === me?.id) return
     const makeAdmin = u.accountType !== 'ADMIN'
-    if (!confirm(makeAdmin ? `Jadikan ${u.displayName} administrator?` : `Cabut hak administrator dari ${u.displayName}?`)) return
+    if (!confirm(makeAdmin ? `Make ${u.displayName} an administrator?` : `Revoke administrator rights from ${u.displayName}?`)) return
     setBusyId(u.id)
     try { await adminApi.setAdmin(u.id, makeAdmin); await refresh() }
-    catch (e) { setError(errMsg(e, 'Aksi gagal')) } finally { setBusyId(null) }
+    catch (e) { setError(errMsg(e, 'Action failed')) } finally { setBusyId(null) }
   }
 
   const submitCreate = async () => {
@@ -193,7 +193,7 @@ export default function AdminPage() {
       setShowCreate(false)
       setCUsername(''); setCDisplayName(''); setCPassword(''); setCEmail('')
       await refresh()
-    } catch (e) { setError(errMsg(e, 'Gagal membuat user')) } finally { setSaving(false) }
+    } catch (e) { setError(errMsg(e, 'Failed to create user')) } finally { setSaving(false) }
   }
 
   const openEdit = (u: AdminUser) => {
@@ -213,7 +213,7 @@ export default function AdminPage() {
     try {
       await adminApi.updateUser(editUser.id, payload)
       setEditUser(null); await refresh()
-    } catch (e) { setError(errMsg(e, 'Gagal menyimpan')) } finally { setSaving(false) }
+    } catch (e) { setError(errMsg(e, 'Failed to save')) } finally { setSaving(false) }
   }
 
   const submitPassword = async () => {
@@ -231,7 +231,7 @@ export default function AdminPage() {
         return
       }
       await refresh()
-    } catch (e) { setError(errMsg(e, 'Gagal mengganti password')) } finally { setSaving(false) }
+    } catch (e) { setError(errMsg(e, 'Failed to change password')) } finally { setSaving(false) }
   }
 
   const submitDelete = async () => {
@@ -240,15 +240,15 @@ export default function AdminPage() {
     try {
       await adminApi.deleteUser(delUser.id)
       setDelUser(null); setDelConfirm(''); await refresh()
-    } catch (e) { setError(errMsg(e, 'Gagal menghapus')) } finally { setSaving(false) }
+    } catch (e) { setError(errMsg(e, 'Failed to delete')) } finally { setSaving(false) }
   }
 
   if (!isAdmin) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 gap-3">
         <div className="text-gray-900 text-lg font-medium">Access denied</div>
-        <div className="text-gray-500 text-sm">Halaman ini hanya untuk administrator.</div>
-        <button onClick={() => navigate({ to: '/' })} className="mt-2 px-4 py-2 bg-[#4aa3df] text-white rounded-lg text-sm">Kembali ke chat</button>
+        <div className="text-gray-500 text-sm">This page is for administrators only.</div>
+        <button onClick={() => navigate({ to: '/' })} className="mt-2 px-4 py-2 bg-[#4aa3df] text-white rounded-lg text-sm">Back to chat</button>
       </div>
     )
   }
@@ -261,13 +261,13 @@ export default function AdminPage() {
       <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
         <h1 className="text-lg font-semibold text-gray-900">Admin Dashboard</h1>
         <div className="flex items-center gap-2">
-          <button onClick={() => { setShowCreate(true); setError(null) }} className="px-3 py-1.5 text-sm bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg">+ Tambah user</button>
-          <button onClick={() => navigate({ to: '/' })} className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg">Kembali ke chat</button>
+          <button onClick={() => { setShowCreate(true); setError(null) }} className="px-3 py-1.5 text-sm bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg">+ Add user</button>
+          <button onClick={() => navigate({ to: '/' })} className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-200 rounded-lg">Back to chat</button>
         </div>
       </div>
 
       <div className="px-6 py-4 grid grid-cols-2 md:grid-cols-5 gap-3">
-        {[['Total user', stats.totalUsers], ['User aktif', stats.activeUsers], ['Total pesan', stats.totalMessages], ['Percakapan', stats.totalConversations], ['Sesi aktif', stats.activeSessions]].map(([label, val]) => (
+        {[['Total users', stats.totalUsers], ['Active users', stats.activeUsers], ['Total messages', stats.totalMessages], ['Percakapan', stats.totalConversations], ['Active sessions', stats.activeSessions]].map(([label, val]) => (
           <div key={String(label)} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
             <div className="text-xs text-gray-500">{label}</div>
             <div className="text-xl font-semibold text-gray-900">{val ?? '—'}</div>
@@ -277,8 +277,8 @@ export default function AdminPage() {
 
       <div className="px-6 pb-6">
         <div className="flex items-center gap-2 mb-3">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onSearch()} placeholder="Cari username atau nama..." className={`max-w-sm ${inputCls}`} />
-          <button onClick={onSearch} className="px-4 py-2 bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg text-sm">Cari</button>
+          <input value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && onSearch()} placeholder="Search username or name..." className={`max-w-sm ${inputCls}`} />
+          <button onClick={onSearch} className="px-4 py-2 bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg text-sm">Search</button>
         </div>
 
         {error && <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
@@ -287,18 +287,18 @@ export default function AdminPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
               <tr>
-                <th className="text-left px-4 py-2.5 font-medium">Nama</th>
+                <th className="text-left px-4 py-2.5 font-medium">Name</th>
                 <th className="text-left px-4 py-2.5 font-medium">Username</th>
                 <th className="text-left px-4 py-2.5 font-medium">Email</th>
                 <th className="text-left px-4 py-2.5 font-medium">Role</th>
                 <th className="text-left px-4 py-2.5 font-medium">Status</th>
-                <th className="text-right px-4 py-2.5 font-medium">Pesan</th>
-                <th className="text-right px-4 py-2.5 font-medium">Aksi</th>
+                <th className="text-right px-4 py-2.5 font-medium">Messages</th>
+                <th className="text-right px-4 py-2.5 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">Memuat...</td></tr>}
-              {!loading && users.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">Tidak ada user</td></tr>}
+              {loading && <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">Loading...</td></tr>}
+              {!loading && users.length === 0 && <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">No users</td></tr>}
               {!loading && users.map((u) => {
                 const self = u.id === me?.id
                 const deleted = u.username.startsWith('deleted_')
@@ -326,7 +326,7 @@ export default function AdminPage() {
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
                         <span className={`w-2 h-2 rounded-full ${STATUS_DOT[u.status] ?? 'bg-gray-400'}`} />
-                        <span className={u.isActive ? 'text-gray-600' : 'text-red-600'}>{u.isActive ? 'Aktif' : 'Nonaktif'}</span>
+                        <span className={u.isActive ? 'text-gray-600' : 'text-red-600'}>{u.isActive ? 'Active' : 'Inactive'}</span>
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-right text-gray-500">{u._count?.messages ?? '—'}</td>
@@ -341,8 +341,8 @@ export default function AdminPage() {
         </div>
 
         <div className="md:hidden flex flex-col gap-2">
-          {loading && <div className="px-4 py-6 text-center text-gray-400 text-sm">Memuat...</div>}
-          {!loading && users.length === 0 && <div className="px-4 py-6 text-center text-gray-400 text-sm">Tidak ada user</div>}
+          {loading && <div className="px-4 py-6 text-center text-gray-400 text-sm">Loading...</div>}
+          {!loading && users.length === 0 && <div className="px-4 py-6 text-center text-gray-400 text-sm">No users</div>}
           {!loading && users.map((u) => {
             const self = u.id === me?.id
             const deleted = u.username.startsWith('deleted_')
@@ -364,7 +364,7 @@ export default function AdminPage() {
                 <div className="flex items-center gap-3 mt-2.5 text-xs text-gray-500">
                   <span className="flex items-center gap-1.5">
                     <span className={`w-2 h-2 rounded-full ${STATUS_DOT[u.status] ?? 'bg-gray-400'}`} />
-                    <span className={u.isActive ? 'text-gray-600' : 'text-red-600'}>{u.isActive ? 'Aktif' : 'Nonaktif'}</span>
+                    <span className={u.isActive ? 'text-gray-600' : 'text-red-600'}>{u.isActive ? 'Active' : 'Inactive'}</span>
                   </span>
                   <span>{u._count?.messages ?? 0} pesan</span>
                   {u.email && <span className="truncate">{u.email}</span>}
@@ -378,7 +378,7 @@ export default function AdminPage() {
         </div>
 
         <div className="flex items-center justify-between mt-3 text-sm text-gray-500">
-          <div>Total {total} user</div>
+          <div>Total {total} users</div>
           <div className="flex items-center gap-2">
             <button disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))} className="px-3 py-1.5 border border-gray-200 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white">Sebelumnya</button>
             <span>Hal {page} / {totalPages}</span>
@@ -390,17 +390,17 @@ export default function AdminPage() {
       {showCreate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => !saving && setShowCreate(false)}>
           <div className="bg-white rounded-xl w-96 p-5" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-base font-semibold text-gray-900 mb-4">Tambah user</h2>
+            <h2 className="text-base font-semibold text-gray-900 mb-4">Add user</h2>
             <div className="flex flex-col gap-3">
-              <div><label className="text-xs text-gray-500">Nama tampilan</label><input value={cDisplayName} onChange={(e) => setCDisplayName(e.target.value)} className={inputCls} /></div>
+              <div><label className="text-xs text-gray-500">Display name</label><input value={cDisplayName} onChange={(e) => setCDisplayName(e.target.value)} className={inputCls} /></div>
               <div><label className="text-xs text-gray-500">Username (min 3)</label><input value={cUsername} onChange={(e) => setCUsername(e.target.value)} className={inputCls} /></div>
               <div><label className="text-xs text-gray-500">Password (min 8)</label><input type="password" value={cPassword} onChange={(e) => setCPassword(e.target.value)} className={inputCls} /></div>
               <div><label className="text-xs text-gray-500">Email (opsional)</label><input value={cEmail} onChange={(e) => setCEmail(e.target.value)} className={inputCls} /></div>
             </div>
             {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
             <div className="flex justify-end gap-2 mt-5">
-              <button disabled={saving} onClick={() => setShowCreate(false)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600">Batal</button>
-              <button disabled={saving || !cUsername.trim() || !cDisplayName.trim() || cPassword.length < 8} onClick={submitCreate} className="px-4 py-1.5 text-sm bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg disabled:opacity-40">{saving ? 'Menyimpan...' : 'Simpan'}</button>
+              <button disabled={saving} onClick={() => setShowCreate(false)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600">Cancel</button>
+              <button disabled={saving || !cUsername.trim() || !cDisplayName.trim() || cPassword.length < 8} onClick={submitCreate} className="px-4 py-1.5 text-sm bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg disabled:opacity-40">{saving ? 'Saving...' : 'Save'}</button>
             </div>
           </div>
         </div>
@@ -411,14 +411,14 @@ export default function AdminPage() {
           <div className="bg-white rounded-xl w-96 p-5" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-base font-semibold text-gray-900 mb-4">Edit {editUser.displayName}</h2>
             <div className="flex flex-col gap-3">
-              <div><label className="text-xs text-gray-500">Nama tampilan</label><input value={eDisplayName} onChange={(e) => setEDisplayName(e.target.value)} className={inputCls} /></div>
+              <div><label className="text-xs text-gray-500">Display name</label><input value={eDisplayName} onChange={(e) => setEDisplayName(e.target.value)} className={inputCls} /></div>
               <div><label className="text-xs text-gray-500">Username</label><input value={eUsername} onChange={(e) => setEUsername(e.target.value)} className={inputCls} /></div>
-              <div><label className="text-xs text-gray-500">Email (kosongkan untuk menghapus)</label><input value={eEmail} onChange={(e) => setEEmail(e.target.value)} className={inputCls} /></div>
+              <div><label className="text-xs text-gray-500">Email (leave blank to remove)</label><input value={eEmail} onChange={(e) => setEEmail(e.target.value)} className={inputCls} /></div>
             </div>
             {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
             <div className="flex justify-end gap-2 mt-5">
-              <button disabled={saving} onClick={() => setEditUser(null)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600">Batal</button>
-              <button disabled={saving} onClick={submitEdit} className="px-4 py-1.5 text-sm bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg disabled:opacity-40">{saving ? 'Menyimpan...' : 'Simpan'}</button>
+              <button disabled={saving} onClick={() => setEditUser(null)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600">Cancel</button>
+              <button disabled={saving} onClick={submitEdit} className="px-4 py-1.5 text-sm bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg disabled:opacity-40">{saving ? 'Saving...' : 'Save'}</button>
             </div>
           </div>
         </div>
@@ -427,23 +427,23 @@ export default function AdminPage() {
       {pwUser && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => !saving && setPwUser(null)}>
           <div className="bg-white rounded-xl w-96 p-5" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-base font-semibold text-gray-900 mb-2">Ganti password</h2>
+            <h2 className="text-base font-semibold text-gray-900 mb-2">Change password</h2>
             <p className="text-sm text-gray-600 mb-3">
               Password baru untuk <b>{pwUser.displayName}</b>.{' '}
               {pwUser.id === me?.id
-                ? <span className="text-red-600">Semua sesi Anda dicabut &mdash; Anda akan langsung ter-logout.</span>
-                : <>Semua sesinya dicabut; ia harus login ulang.</>}
+                ? <span className="text-red-600">All your sessions will be revoked &mdash; you will be logged out immediately.</span>
+                : <>All their sessions will be revoked; they must log in again.</>}
             </p>
             <div className="flex flex-col gap-3">
-              <div><label className="text-xs text-gray-500">Password baru (min 8)</label><input type="password" value={pw1} onChange={(e) => setPw1(e.target.value)} className={inputCls} /></div>
-              <div><label className="text-xs text-gray-500">Ulangi password</label><input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} className={inputCls} /></div>
+              <div><label className="text-xs text-gray-500">New password (min 8)</label><input type="password" value={pw1} onChange={(e) => setPw1(e.target.value)} className={inputCls} /></div>
+              <div><label className="text-xs text-gray-500">Repeat password</label><input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} className={inputCls} /></div>
             </div>
             {pw1.length > 0 && pw1.length < 8 && <div className="mt-2 text-xs text-red-600">Minimal 8 karakter (sekarang {pw1.length})</div>}
-            {pw1.length >= 8 && pw2.length > 0 && pw1 !== pw2 && <div className="mt-2 text-xs text-red-600">Password tidak sama</div>}
+            {pw1.length >= 8 && pw2.length > 0 && pw1 !== pw2 && <div className="mt-2 text-xs text-red-600">Passwords do not match</div>}
             {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
             <div className="flex justify-end gap-2 mt-5">
-              <button disabled={saving} onClick={() => setPwUser(null)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600">Batal</button>
-              <button disabled={saving || pw1.length < 8 || pw1 !== pw2} onClick={submitPassword} className="px-4 py-1.5 text-sm bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg disabled:opacity-40">{saving ? 'Menyimpan...' : 'Simpan password'}</button>
+              <button disabled={saving} onClick={() => setPwUser(null)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600">Cancel</button>
+              <button disabled={saving || pw1.length < 8 || pw1 !== pw2} onClick={submitPassword} className="px-4 py-1.5 text-sm bg-[#4aa3df] hover:bg-[#3a92ce] text-white rounded-lg disabled:opacity-40">{saving ? 'Saving...' : 'Save password'}</button>
             </div>
           </div>
         </div>
@@ -452,17 +452,17 @@ export default function AdminPage() {
       {delUser && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => !saving && setDelUser(null)}>
           <div className="bg-white rounded-xl w-96 p-5" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-base font-semibold text-gray-900 mb-2">Hapus user</h2>
+            <h2 className="text-base font-semibold text-gray-900 mb-2">Delete user</h2>
             <p className="text-sm text-gray-600 mb-3">
-              Identitas <b>{delUser.displayName}</b> akan dimusnahkan permanen dan semua sesinya dicabut.
-              Riwayat pesan tetap ada, tampil sebagai &quot;User dihapus&quot;. Tindakan ini <b>tidak bisa dibatalkan</b>.
+              The identity <b>{delUser.displayName}</b> will be permanently destroyed and all their sessions revoked.
+              Message history remains, shown as &quot;Deleted user&quot;. Tindakan ini <b>cannot be undone</b>.
             </p>
-            <label className="text-xs text-gray-500">Ketik <b>{delUser.username}</b> untuk konfirmasi</label>
+            <label className="text-xs text-gray-500">Type <b>{delUser.username}</b> to confirm</label>
             <input value={delConfirm} onChange={(e) => setDelConfirm(e.target.value)} className={inputCls} />
             {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
             <div className="flex justify-end gap-2 mt-5">
-              <button disabled={saving} onClick={() => setDelUser(null)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600">Batal</button>
-              <button disabled={saving || delConfirm !== delUser.username} onClick={submitDelete} className="px-4 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-40">{saving ? 'Menghapus...' : 'Hapus permanen'}</button>
+              <button disabled={saving} onClick={() => setDelUser(null)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-600">Cancel</button>
+              <button disabled={saving || delConfirm !== delUser.username} onClick={submitDelete} className="px-4 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-40">{saving ? 'Deleting...' : 'Delete permanently'}</button>
             </div>
           </div>
         </div>

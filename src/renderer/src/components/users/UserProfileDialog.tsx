@@ -81,7 +81,7 @@ export default function UserProfileDialog({ onClose }: UserProfileDialogProps) {
       })
       .catch(() => {
         if (cancelled) return
-        setError('Gagal memuat profil. Coba tutup dan buka lagi.')
+        setError('Failed to load profile. Please close and reopen.')
         setLoading(false)
       })
     return () => {
@@ -96,7 +96,7 @@ export default function UserProfileDialog({ onClose }: UserProfileDialogProps) {
   const handleSave = async () => {
     // Validasi klien seminimal backend: hanya displayName wajib.
     if (form.displayName.trim().length < 1) {
-      setError('Display name tidak boleh kosong.')
+      setError('Display name cannot be empty.')
       return
     }
 
@@ -125,7 +125,7 @@ export default function UserProfileDialog({ onClose }: UserProfileDialogProps) {
       onClose()
     } catch {
       setSaving(false)
-      setError('Gagal menyimpan. Periksa koneksi lalu coba lagi.')
+      setError('Failed to save. Check your connection and try again.')
     }
   }
 

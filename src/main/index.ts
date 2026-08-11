@@ -86,14 +86,6 @@ function buildMenu(): void {
       label: 'File',
       submenu: [
         {
-          label: 'New User',
-          accelerator: 'CmdOrCtrl+Shift+N',
-          click: () => {
-            mainWindow?.webContents.send('menu:new-user')
-          }
-        },
-        { type: 'separator' },
-        {
           label: 'Logout',
           click: () => {
             mainWindow?.webContents.send('menu:logout')
