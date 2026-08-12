@@ -4,15 +4,19 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.net.Uri;
+import androidx.core.content.FileProvider;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.io.File;
 
 // Tulis gambar ke clipboard SISTEM Android via content:// URI (FileProvider).
-// Android tak punya API publik utk tulis bitmap mentah langsung (beda dgn
-// Electron clipboard.writeImage) - pola baku: ClipData.newUri ke ClipboardManager,
-// aplikasi lain (WhatsApp/Chrome/dll) baca via URI itu saat paste.
+// Filesystem.getUri() (JS) balikin URI berskema file:// -- Android StrictMode
+// MELARANG file:// diedarkan ke app lain (FileUriExposedException). Plugin
+// resmi @capacitor/share sudah otomatis convert file://->content:// via
+// FileProvider; kita replikasi konversi yg sama di sini (pakai FileProvider
+// yg SUDAH terpasang utk Share, authority=${applicationId}.fileprovider).
 @CapacitorPlugin(name = "ClipboardImage")
 public class ClipboardImagePlugin extends Plugin {
 
@@ -24,9 +28,17 @@ public class ClipboardImagePlugin extends Plugin {
             return;
         }
         try {
-            Uri uri = Uri.parse(uriString);
+            Uri rawUri = Uri.parse(uriString);
+            Uri contentUri;
+            if ("file".equals(rawUri.getScheme())) {
+                File file = new File(rawUri.getPath());
+                String authority = getContext().getPackageName() + ".fileprovider";
+                contentUri = FileProvider.getUriForFile(getContext(), authority, file);
+            } else {
+                contentUri = rawUri;
+            }
             ClipboardManager cm = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData clip = ClipData.newUri(getContext().getContentResolver(), "Image", uri);
+            ClipData clip = ClipData.newUri(getContext().getContentResolver(), "Image", contentUri);
             cm.setPrimaryClip(clip);
             call.resolve();
         } catch (Exception e) {
