@@ -154,7 +154,8 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
       await ClipboardImage.copyUri({ uri })
     } catch (e) {
       console.error('[AttachmentImage] handleCopyImageToClipboard error', e)
-      alert('Failed to copy image.')
+      const msg = e instanceof Error ? e.message : String(e)
+      alert(`Failed to copy image: ${msg}`)
     }
   }
 
