@@ -1,10 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, registerPlugin } from '@capacitor/core'
 import { Filesystem, Directory } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
 import { attachmentsApi } from '../../services/api.service'
 import { useChatStore } from '../../stores/chat.store'
 import type { Attachment } from '../../types'
+
+interface ClipboardImagePlugin {
+  copyUri(options: { uri: string }): Promise<void>
+}
+const ClipboardImage = registerPlugin<ClipboardImagePlugin>('ClipboardImage')
 
 const blobCache = new Map<string, string>()
 
@@ -127,6 +132,32 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
     }
   }
 
+
+  // Copy Image SUNGGUHAN ke clipboard sistem Android (bukan Share sheet).
+  // Duplikasi kecil dari shareImageAndroid (tulis cache -> FileProvider URI) -
+  // sengaja tidak direfactor jadi shared function, supaya Share Image yang
+  // sudah teruji tetap utuh tak tersentuh.
+  const handleCopyImageToClipboard = async () => {
+    if (!src) return
+    closeMenu()
+    try {
+      const blob = await (await fetch(src)).blob()
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader()
+        r.onloadend = () => resolve(String(r.result))
+        r.onerror = () => reject(new Error('Failed to read image'))
+        r.readAsDataURL(blob)
+      })
+      const name = attachment.fileName || `image-${Date.now()}.png`
+      await Filesystem.writeFile({ path: name, data: dataUrl, directory: Directory.Cache })
+      const { uri } = await Filesystem.getUri({ directory: Directory.Cache, path: name })
+      await ClipboardImage.copyUri({ uri })
+    } catch (e) {
+      console.error('[AttachmentImage] handleCopyImageToClipboard error', e)
+      alert('Failed to copy image.')
+    }
+  }
+
   const handleCopyImage = async () => {
     if (!src) return
     closeMenu()
@@ -212,6 +243,14 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
             >
               {Capacitor.isNativePlatform() ? '📤 Share Image' : '📋 Copy Image'}
             </button>
+              {Capacitor.isNativePlatform() && (
+              <button
+                onClick={handleCopyImageToClipboard}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-200 hover:bg-gray-700"
+              >
+                📋 Copy Image
+              </button>
+              )}
             <button
               onClick={() => { setInfoOpen(true); closeMenu() }}
               className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-200 hover:bg-gray-700"

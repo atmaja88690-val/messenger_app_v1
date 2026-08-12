@@ -2,6 +2,8 @@ package com.bsi.messenger;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.Intent;
 import android.os.Build;
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
@@ -20,27 +22,36 @@ public class BsimMessagingService extends MessagingService {
     private static final String CHANNEL_ID = "bsim_messages";
     private static final String CHANNEL_NAME = "Messages";
 
+    private static final String CALL_CHANNEL_ID = "bsim_calls";
+    private static final String CALL_CHANNEL_NAME = "Calls";
+
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         Map<String, String> data = remoteMessage.getData();
-        String title = data.get("title");
-        String body = data.get("body");
-        if (title != null || body != null) {
-            String t = (title != null) ? title : "BSI Messenger";
-            String b = (body != null) ? body : "";
-            showNotification(t, b, data.get("messageId"));
+        String type = data.get("type");
+        if ("call".equals(type)) {
+            showCallNotification(data);
+        } else {
+            String title = data.get("title");
+            String body = data.get("body");
+            if (title != null || body != null) {
+                String t = (title != null) ? title : "BSI Messenger";
+                String b = (body != null) ? body : "";
+                showNotification(t, b, data.get("messageId"));
+            }
         }
         super.onMessageReceived(remoteMessage);
     }
 
     private void showNotification(String title, String body, String messageId) {
-        createChannel();
+        createChannel(CHANNEL_ID, CHANNEL_NAME);
         int id = (messageId != null) ? messageId.hashCode() : (int) System.currentTimeMillis();
         NotificationCompat.Builder b = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(getApplicationInfo().icon)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)
+            .setContentIntent(buildOpenAppIntent())
             .setPriority(NotificationCompat.PRIORITY_HIGH);
         try {
             NotificationManagerCompat.from(this).notify(id, b.build());
@@ -49,12 +60,50 @@ public class BsimMessagingService extends MessagingService {
         }
     }
 
-    private void createChannel() {
+    private void createChannel(String channelId, String channelName) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel ch = new NotificationChannel(
-                CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH);
+                channelId, channelName, NotificationManager.IMPORTANCE_HIGH);
             NotificationManager nm = getSystemService(NotificationManager.class);
             if (nm != null) nm.createNotificationChannel(ch);
         }
+    }
+
+    // Notif panggilan masuk - channel terpisah dari pesan (suara/getar beda).
+    // Fase A: tap = buka app (default). Fase B (belum): setFullScreenIntent +
+    // layar accept/decline dari lockscreen ala WhatsApp.
+    private void showCallNotification(Map<String, String> data) {
+        createChannel(CALL_CHANNEL_ID, CALL_CHANNEL_NAME);
+        String callerName = data.get("callerName");
+        String callType = data.get("callType");
+        String name = (callerName != null) ? callerName : "Someone";
+        boolean isVideo = "VIDEO".equals(callType);
+        String title = (isVideo ? "Incoming video call from " : "Incoming call from ") + name;
+        String callId = data.get("callId");
+        int id = (callId != null) ? callId.hashCode() : (int) System.currentTimeMillis();
+        NotificationCompat.Builder b = new NotificationCompat.Builder(this, CALL_CHANNEL_ID)
+            .setSmallIcon(getApplicationInfo().icon)
+            .setContentTitle(title)
+            .setContentText("Tap to open BSI Messenger")
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setAutoCancel(true)
+            .setContentIntent(buildOpenAppIntent())
+            .setPriority(NotificationCompat.PRIORITY_HIGH);
+        try {
+            NotificationManagerCompat.from(this).notify(id, b.build());
+        } catch (SecurityException ignored) {
+            // POST_NOTIFICATIONS belum di-grant (API33+).
+        }
+    }
+
+    // PendingIntent utk buka app saat notif di-tap (pesan maupun call).
+    private PendingIntent buildOpenAppIntent() {
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (launchIntent != null) {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        }
+        return PendingIntent.getActivity(
+            this, 0, launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 }
