@@ -2,6 +2,7 @@ import api from './api.service'
 import { wsService } from './ws.service'
 import { Room, RoomEvent, Track, createLocalTracks } from 'livekit-client'
 import type { LocalTrack, RemoteTrack, RemoteParticipant } from 'livekit-client'
+import type { ReconnectPolicy, ReconnectContext } from 'livekit-client'
 import type { CallType, WsCallIncomingPayload, WsCallAcceptedPayload } from '../types'
 
 // LiveKit SFU 1:1. Media mengalir klien <-> server (bsichat-rtc), BUKAN P2P.
@@ -22,6 +23,18 @@ interface TokenResponse {
   url: string
   token: string
   room: string
+}
+
+// Backoff eksponensial ter-cap, gigih ~10 percobaan (~2 menit total) sebelum
+// menyerah - default SDK terlalu cepat menyerah saat sinyal HP goyah/putus
+// sesaat (lockscreen, handover WiFi<->seluler). Prinsip sama dgn reschedule
+// token auth: jangan pasif, terus coba sampai ambang waktu wajar.
+class ResilientReconnectPolicy implements ReconnectPolicy {
+  private readonly maxRetries = 10
+  nextRetryDelayInMs(context: ReconnectContext): number | null {
+    if (context.retryCount >= this.maxRetries) return null
+    return Math.min(300 * 2 ** context.retryCount, 10_000)
+  }
 }
 
 class CallService {
@@ -135,7 +148,16 @@ class CallService {
     }
     this.cb?.onLocalStream(localStream)
 
-    const room = new Room({ adaptiveStream: true, dynacast: true })
+    const room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+        reconnectPolicy: new ResilientReconnectPolicy(),
+        // WebView Android bisa memicu pagehide saat app background/layar
+        // terkunci - default SDK memutus room di momen itu meski user TAK
+        // bermaksud hangup. Panggilan sekarang bisa dimulai dari lockscreen
+        // (Fase B) jadi ini krusial: jangan putus otomatis saat background.
+        disconnectOnPageLeave: false,
+      })
     this.attachRoomEvents(room)
     this.room = room
 
