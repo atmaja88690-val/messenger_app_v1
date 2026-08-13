@@ -81,13 +81,15 @@ public class BsimMessagingService extends MessagingService {
         String title = (isVideo ? "Incoming video call from " : "Incoming call from ") + name;
         String callId = data.get("callId");
         int id = (callId != null) ? callId.hashCode() : (int) System.currentTimeMillis();
+        PendingIntent fullScreenIntent = buildCallIntent(data, id);
         NotificationCompat.Builder b = new NotificationCompat.Builder(this, CALL_CHANNEL_ID)
             .setSmallIcon(getApplicationInfo().icon)
             .setContentTitle(title)
             .setContentText("Tap to open BSI Messenger")
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setAutoCancel(true)
-            .setContentIntent(buildOpenAppIntent())
+            .setContentIntent(fullScreenIntent)
+            .setFullScreenIntent(fullScreenIntent, true)
             .setPriority(NotificationCompat.PRIORITY_HIGH);
         try {
             NotificationManagerCompat.from(this).notify(id, b.build());
@@ -104,6 +106,24 @@ public class BsimMessagingService extends MessagingService {
         }
         return PendingIntent.getActivity(
             this, 0, launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    // PendingIntent khusus call - requestCode UNIK (id notif) supaya tak
+    // timpa buildOpenAppIntent() (notif pesan, requestCode=0 tetap). Bawa
+    // extras call utk dibaca MainActivity (Fase B: buka CallOverlay langsung).
+    private PendingIntent buildCallIntent(Map<String, String> data, int requestCode) {
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (launchIntent == null) launchIntent = new Intent();
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        launchIntent.putExtra("pendingCallAction", "incoming");
+        launchIntent.putExtra("callId", data.get("callId"));
+        launchIntent.putExtra("callType", data.get("callType"));
+        launchIntent.putExtra("conversationId", data.get("conversationId"));
+        launchIntent.putExtra("callerId", data.get("callerId"));
+        launchIntent.putExtra("callerName", data.get("callerName"));
+        return PendingIntent.getActivity(
+            this, requestCode, launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 }

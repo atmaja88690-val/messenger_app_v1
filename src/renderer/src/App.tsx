@@ -13,12 +13,27 @@ import SettingsDialog from './components/settings/SettingsDialog'
 import UserProfileDialog from './components/users/UserProfileDialog'
 import AboutDialog from './components/settings/AboutDialog'
 import AppMenu from './components/AppMenu'
+import { Capacitor, registerPlugin } from '@capacitor/core'
 import { registerPushAndroid } from './services/push-android.service'
-import { initCallBridge } from './stores/call.store'
+import { initCallBridge, useCallStore } from './stores/call.store'
+import type { CallType, WsCallIncomingPayload } from './types'
 
 // Listener call didaftarkan sekali di level modul, SEBELUM WS tersambung.
 // Di dalam komponen akan terdaftar ulang tiap remount/HMR.
 initCallBridge()
+
+interface IncomingCallResult {
+  pending: boolean
+  callId?: string
+  callType?: string
+  conversationId?: string
+  callerId?: string
+  callerName?: string
+}
+interface IncomingCallPlugin {
+  consumePendingCall(): Promise<IncomingCallResult>
+}
+const IncomingCall = registerPlugin<IncomingCallPlugin>('IncomingCall')
 
 type Section = 'chats' | 'inbox' | 'broadcast' | 'templates' | 'analytics'
 
@@ -69,6 +84,30 @@ function App() {
   // Register FCM push (Android saja; NO-OP di Electron via guard di service).
   useEffect(() => {
     if (user) registerPushAndroid()
+  }, [user])
+
+  // Fase B: app dibuka dari full-screen intent notif call (BsimMessagingService)
+  // - baik cold start maupun dari lockscreen. Sekali per user-loaded (gate auth,
+  // pola sama dgn registerPushAndroid di atas), baca data call tertunda dari
+  // native lalu sintesis payload persis bentuk WsCallIncomingPayload (sdp dummy,
+  // TAK dipakai di SFU - lihat call.service.ts onAccepted), pakai infra call yg
+  // SUDAH ADA (incoming+accept), bukan jalur baru.
+  useEffect(() => {
+    if (!user || !Capacitor.isNativePlatform()) return
+    IncomingCall.consumePendingCall()
+      .then((r) => {
+        if (!r.pending || !r.callId || !r.callType || !r.conversationId || !r.callerId) return
+        const payload: WsCallIncomingPayload = {
+          callId: r.callId,
+          conversationId: r.conversationId,
+          callType: r.callType as CallType,
+          sdp: {} as RTCSessionDescriptionInit,
+          from: { id: r.callerId, displayName: r.callerName ?? 'Someone' }
+        }
+        useCallStore.getState().incoming(payload)
+        void useCallStore.getState().accept()
+      })
+      .catch((err) => console.error('[IncomingCall] consumePendingCall gagal:', err))
   }, [user])
 
   // Listener menu native (main process) → buka dialog New User.
