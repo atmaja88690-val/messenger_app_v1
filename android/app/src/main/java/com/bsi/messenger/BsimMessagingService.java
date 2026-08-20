@@ -30,28 +30,37 @@ public class BsimMessagingService extends MessagingService {
         Map<String, String> data = remoteMessage.getData();
         String type = data.get("type");
         if ("call".equals(type)) {
-            showCallNotification(data);
+            startIncomingCall(data);
         } else {
             String title = data.get("title");
             String body = data.get("body");
             if (title != null || body != null) {
                 String t = (title != null) ? title : "BSI Messenger";
                 String b = (body != null) ? body : "";
-                showNotification(t, b, data.get("messageId"));
+                showNotification(t, b, data.get("messageId"), data.get("conversationId"));
             }
         }
         super.onMessageReceived(remoteMessage);
     }
 
-    private void showNotification(String title, String body, String messageId) {
+    private void showNotification(String title, String body, String messageId, String conversationId) {
         createChannel(CHANNEL_ID, CHANNEL_NAME);
         int id = (messageId != null) ? messageId.hashCode() : (int) System.currentTimeMillis();
+        PendingIntent openIntent = buildOpenAppIntent(conversationId, id);
+        // Full-screen intent utk notif pesan (bukan cuma call). App INTERNAL
+        // perusahaan, bukan Play Store -- kebijakan USE_FULL_SCREEN_INTENT
+        // Android 14+ (dibatasi utk call/alarm) diterima sebagai trade-off.
+        // Android hanya benar2 ambil alih layar saat HP terkunci/idle; saat
+        // HP aktif dipakai otomatis turun jadi heads-up biasa (tidak berubah
+        // dari perilaku sekarang).
         NotificationCompat.Builder b = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(getApplicationInfo().icon)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)
-            .setContentIntent(buildOpenAppIntent())
+            .setContentIntent(openIntent)
+            .setFullScreenIntent(openIntent, true)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH);
         try {
             NotificationManagerCompat.from(this).notify(id, b.build());
@@ -72,6 +81,27 @@ public class BsimMessagingService extends MessagingService {
     // Notif panggilan masuk - channel terpisah dari pesan (suara/getar beda).
     // Fase A: tap = buka app (default). Fase B (belum): setFullScreenIntent +
     // layar accept/decline dari lockscreen ala WhatsApp.
+    // Panggilan masuk ala WhatsApp: delegasi ke IncomingCallService (dering
+    // loop + getar + notif CallStyle). Kalau app sedang dibuka, web sudah
+    // menampilkan panggilan lewat WS -> skip supaya tidak dering dobel.
+    private void startIncomingCall(Map<String, String> data) {
+        if (MainActivity.isAppForeground) return;
+        Intent svc = new Intent(this, IncomingCallService.class)
+            .setAction(IncomingCallService.ACTION_INCOMING);
+        svc.putExtra("callId", data.get("callId"));
+        svc.putExtra("callType", data.get("callType"));
+        svc.putExtra("conversationId", data.get("conversationId"));
+        svc.putExtra("callerId", data.get("callerId"));
+        svc.putExtra("callerName", data.get("callerName"));
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(svc);
+            } else {
+                startService(svc);
+            }
+        } catch (Exception ignored) {}
+    }
+
     private void showCallNotification(Map<String, String> data) {
         createChannel(CALL_CHANNEL_ID, CALL_CHANNEL_NAME);
         String callerName = data.get("callerName");
@@ -98,14 +128,19 @@ public class BsimMessagingService extends MessagingService {
         }
     }
 
-    // PendingIntent utk buka app saat notif di-tap (pesan maupun call).
-    private PendingIntent buildOpenAppIntent() {
+    // PendingIntent utk buka app saat notif pesan di-tap. requestCode UNIK
+    // (id notif) spy tiap notif pesan bawa conversationId sendiri2 - identity
+    // PendingIntent itu requestCode+action+data, BUKAN extras, jadi requestCode
+    // fix=0 lama bisa bikin extras ke-timpa notif lain.
+    private PendingIntent buildOpenAppIntent(String conversationId, int requestCode) {
         Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
-        if (launchIntent != null) {
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        if (launchIntent == null) launchIntent = new Intent();
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        if (conversationId != null) {
+            launchIntent.putExtra("openConversationId", conversationId);
         }
         return PendingIntent.getActivity(
-            this, 0, launchIntent,
+            this, requestCode, launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 

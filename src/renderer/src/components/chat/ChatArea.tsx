@@ -311,7 +311,7 @@ export default function ChatArea({
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
           </button>
           {headPartner?.id ? (
-            <Avatar userId={headPartner.id} name={headName} avatarKey={headPartner.avatarKey} className="w-8 h-8 rounded-full flex-shrink-0" />
+            <Avatar userId={headPartner.id} name={headName} avatarVersion={headPartner.avatarVersion} className="w-8 h-8 rounded-full flex-shrink-0" />
           ) : (
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
               {headName.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}

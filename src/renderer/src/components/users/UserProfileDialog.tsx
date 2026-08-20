@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { usersApi } from '../../services/api.service'
 import { useAuthStore } from '../../stores/auth.store'
+import Avatar from '../chat/Avatar'
 
 interface UserProfileDialogProps {
   onClose: () => void
@@ -41,7 +42,15 @@ const MAXLEN: Record<keyof ProfileForm, number> = {
   jobDepartment: 128
 }
 
+const ALLOWED_AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024
+
 export default function UserProfileDialog({ onClose }: UserProfileDialogProps) {
+  const me = useAuthStore((s) => s.user)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
+
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM)
   // initial disimpan terpisah untuk dirty-tracking: hanya field yang berbeda
   // dari initial yang dikirim ke PATCH. Field yang dikosongkan (isi -> '') juga
@@ -91,6 +100,41 @@ export default function UserProfileDialog({ onClose }: UserProfileDialogProps) {
 
   const setField = (key: keyof ProfileForm, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // Reset value supaya milih file yg SAMA lagi tetap memicu onChange.
+    e.target.value = ''
+    if (!file) return
+
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      setAvatarError('Hanya JPEG, PNG, WebP, atau GIF yang diizinkan.')
+      return
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setAvatarError('Ukuran foto maksimal 5MB.')
+      return
+    }
+
+    setAvatarError(null)
+    setUploadingAvatar(true)
+    try {
+      const { data } = await usersApi.uploadAvatar(file)
+      // Update avatarVersion di store -> Avatar.tsx di SELURUH app (sidebar,
+      // header, dll) otomatis refetch krn URL-nya berubah (query ?v= beda).
+      useAuthStore.setState((st) => ({
+        user: st.user ? { ...st.user, avatarVersion: data.avatarVersion } : st.user
+      }))
+    } catch {
+      setAvatarError('Gagal mengunggah foto. Coba lagi.')
+    } finally {
+      setUploadingAvatar(false)
+    }
   }
 
   const handleSave = async () => {
@@ -143,6 +187,31 @@ export default function UserProfileDialog({ onClose }: UserProfileDialogProps) {
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
       <div className="bg-gray-800 rounded-lg p-6 w-[420px] flex flex-col gap-4 shadow-xl">
         <h2 className="text-white font-semibold text-lg">My User Profile</h2>
+
+        <div className="flex flex-col items-center gap-2">
+          <Avatar
+            userId={me?.id ?? ''}
+            name={me?.displayName ?? me?.username ?? 'User'}
+            avatarVersion={me?.avatarVersion}
+            className="w-20 h-20 rounded-full"
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={handleAvatarChange}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={handleAvatarClick}
+            disabled={uploadingAvatar}
+            className="text-xs text-blue-400 hover:text-blue-300 disabled:opacity-50"
+          >
+            {uploadingAvatar ? 'Mengunggah...' : 'Ganti Foto'}
+          </button>
+          {avatarError && <p className="text-red-400 text-xs">{avatarError}</p>}
+        </div>
 
         {loading ? (
           <p className="text-gray-400 text-sm">Loading...</p>

@@ -1,6 +1,6 @@
 import api from './api.service'
 import { wsService } from './ws.service'
-import { Room, RoomEvent, Track, createLocalTracks } from 'livekit-client'
+import { Room, RoomEvent, Track, createLocalTracks, VideoPresets } from 'livekit-client'
 import type { LocalTrack, RemoteTrack, RemoteParticipant } from 'livekit-client'
 import type { ReconnectPolicy, ReconnectContext } from 'livekit-client'
 import type { CallType, WsCallIncomingPayload, WsCallAcceptedPayload } from '../types'
@@ -23,6 +23,12 @@ interface TokenResponse {
   url: string
   token: string
   room: string
+}
+
+interface TurnCredentials {
+  iceServers: RTCIceServer[]
+  ttl: number
+  turnEnabled: boolean
 }
 
 // Backoff eksponensial ter-cap, gigih ~10 percobaan (~2 menit total) sebelum
@@ -68,6 +74,22 @@ class CallService {
   private async fetchToken(callId: string): Promise<TokenResponse> {
     const { data } = await api.get('/call/' + callId + '/token')
     return data as TokenResponse
+  }
+
+  // Ambil STUN+TURN self-hosted dari backend (coturn BSIM) supaya panggilan
+  // tidak bergantung pada STUN publik pihak ketiga (default LiveKit saat
+  // rtc.stun_servers tidak dikonfigurasi di livekit.yaml) yang kadang tak
+  // bisa di-resolve/dijangkau dari jaringan klien -- root cause call putus
+  // cepat dgn "could not establish pc connection". Gagal fetch = fallback
+  // ke default LiveKit (tidak fatal, call tetap dicoba).
+  private async fetchIceServers(): Promise<RTCIceServer[]> {
+    try {
+      const { data } = await api.get('/turn/credentials')
+      return (data as TurnCredentials).iceServers ?? []
+    } catch (err) {
+      console.warn('[call] fetchIceServers gagal, pakai default LiveKit:', err)
+      return []
+    }
   }
 
   private attachRoomEvents(room: Room): void {
@@ -132,11 +154,18 @@ class CallService {
 
   private async joinRoom(callId: string, callType: CallType): Promise<void> {
     this.callId = callId
-    const { url, token } = await this.fetchToken(callId)
+    const [{ url, token }, iceServers] = await Promise.all([
+      this.fetchToken(callId),
+      this.fetchIceServers(),
+    ])
 
     let tracks: LocalTrack[]
     try {
-      tracks = await createLocalTracks({ audio: true, video: callType === 'VIDEO' })
+      tracks = await createLocalTracks({
+        audio: true,
+        // Cap resolusi kirim video -> mulus di 4G (uplink seluler lemah).
+        video: callType === 'VIDEO' ? { resolution: VideoPresets.h360.resolution } : false
+      })
     } catch (err) {
       throw this.mapMediaError(err)
     }
@@ -151,6 +180,10 @@ class CallService {
     const room = new Room({
         adaptiveStream: true,
         dynacast: true,
+        // Batasi bitrate kirim video biar tidak patah-patah di jaringan seluler.
+        publishDefaults: {
+          videoEncoding: VideoPresets.h360.encoding,
+        },
         reconnectPolicy: new ResilientReconnectPolicy(),
         // WebView Android bisa memicu pagehide saat app background/layar
         // terkunci - default SDK memutus room di momen itu meski user TAK
@@ -161,7 +194,7 @@ class CallService {
     this.attachRoomEvents(room)
     this.room = room
 
-    await room.connect(url, token)
+    await room.connect(url, token, iceServers.length > 0 ? { rtcConfig: { iceServers } } : undefined)
     for (const t of tracks) {
       await room.localParticipant.publishTrack(t)
     }

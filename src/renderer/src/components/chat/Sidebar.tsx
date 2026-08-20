@@ -87,7 +87,7 @@ export default function Sidebar({
         }`}
       >
         {otherM ? (
-          <Avatar userId={otherM.userId} name={name} avatarKey={otherM.user?.avatarKey} className="w-10 h-10 rounded-full flex-shrink-0" />
+          <Avatar userId={otherM.userId} name={name} avatarVersion={otherM.user?.avatarVersion} className="w-10 h-10 rounded-full flex-shrink-0" />
         ) : (
           <div className="w-10 h-10 rounded-full bg-[#4aa3df] flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
             {initials(name)}
@@ -112,7 +112,7 @@ export default function Sidebar({
       <div className="px-3 py-3 border-b border-gray-100 flex items-center gap-3">
         <div className="relative flex-shrink-0">
           {me?.id ? (
-            <Avatar userId={me.id} name={me.displayName || me.username || 'Saya'} avatarKey={me.avatarKey} className="w-9 h-9 rounded-full flex-shrink-0" />
+            <Avatar userId={me.id} name={me.displayName || me.username || 'Saya'} avatarVersion={me.avatarVersion} className="w-9 h-9 rounded-full flex-shrink-0" />
           ) : (
             <div className="w-9 h-9 rounded-full bg-[#4aa3df] flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
               {initials(me?.displayName || me?.username || 'S')}
@@ -162,7 +162,7 @@ export default function Sidebar({
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-gray-50 transition-colors"
                   >
                     {otherM ? (
-                      <Avatar userId={otherM.userId} name={name} avatarKey={otherM.user?.avatarKey} className="w-7 h-7 rounded-full flex-shrink-0" />
+                      <Avatar userId={otherM.userId} name={name} avatarVersion={otherM.user?.avatarVersion} className="w-7 h-7 rounded-full flex-shrink-0" />
                     ) : (
                       <div className="w-7 h-7 rounded-full bg-[#4aa3df] flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
                         {initials(name)}

@@ -35,7 +35,7 @@ export default function PartnerProfileDialog({ partner, onClose }: PartnerProfil
           <Avatar
             userId={partner.id}
             name={name}
-            avatarKey={partner.avatarKey}
+            avatarVersion={partner.avatarVersion}
             className="w-20 h-20 rounded-full flex-shrink-0"
           />
           {status && (

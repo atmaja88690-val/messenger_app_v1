@@ -15,6 +15,8 @@ import AboutDialog from './components/settings/AboutDialog'
 import AppMenu from './components/AppMenu'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { registerPushAndroid } from './services/push-android.service'
+import { requestBatteryOptimizationExemption } from './services/battery-optimization.service'
+import { useChatStore } from './stores/chat.store'
 import { initCallBridge, useCallStore } from './stores/call.store'
 import type { CallType, WsCallIncomingPayload } from './types'
 
@@ -32,6 +34,13 @@ interface IncomingCallResult {
 }
 interface IncomingCallPlugin {
   consumePendingCall(): Promise<IncomingCallResult>
+  consumePendingOpenConversation(): Promise<{ pending: boolean; conversationId?: string }>
+  consumePendingRingingCall(): Promise<IncomingCallResult>
+  stopIncomingRing(): Promise<void>
+  addListener(
+    eventName: 'answerNow',
+    listenerFunc: () => void
+  ): Promise<{ remove: () => Promise<void> }>
 }
 const IncomingCall = registerPlugin<IncomingCallPlugin>('IncomingCall')
 
@@ -83,7 +92,10 @@ function App() {
 
   // Register FCM push (Android saja; NO-OP di Electron via guard di service).
   useEffect(() => {
-    if (user) registerPushAndroid()
+    if (user) {
+      registerPushAndroid()
+      requestBatteryOptimizationExemption()
+    }
   }, [user])
 
   // Fase B: app dibuka dari full-screen intent notif call (BsimMessagingService)
@@ -95,6 +107,42 @@ function App() {
   useEffect(() => {
     if (!user || !Capacitor.isNativePlatform()) return
     IncomingCall.consumePendingCall()
+      .then(async (r) => {
+        if (!r.pending || !r.callId || !r.callType || !r.conversationId || !r.callerId) return
+        const payload: WsCallIncomingPayload = {
+          callId: r.callId,
+          conversationId: r.conversationId,
+          callType: r.callType as CallType,
+          sdp: {} as RTCSessionDescriptionInit,
+          from: { id: r.callerId, displayName: r.callerName ?? 'Someone' }
+        }
+        // Buka percakapan pemanggil + tampilkan area chat DULU supaya CallOverlay
+        // (dirender di dalam ChatArea) terlihat. Di mobile, view 'list'
+        // menyembunyikan ChatArea -> call UI tak tampak walau sudah tersambung.
+        useChatStore.getState().selectConversation(r.conversationId)
+        setMobileView('chat')
+        await useCallStore.getState().acceptIncoming(payload)
+      })
+      .catch((err) => console.error('[IncomingCall] consumePendingCall gagal:', err))
+  }, [user])
+
+  useEffect(() => {
+    if (!user || !Capacitor.isNativePlatform()) return
+    IncomingCall.consumePendingOpenConversation()
+      .then((r) => {
+        if (!r.pending || !r.conversationId) return
+        useChatStore.getState().selectConversation(r.conversationId)
+        setMobileView('chat')
+      })
+      .catch((err) => console.error('[IncomingCall] consumePendingOpenConversation gagal:', err))
+  }, [user])
+
+  // Full-screen intent (HP terkunci) -> tampilkan layar DERING (Accept/Decline),
+  // BUKAN auto-accept. Dering native tetap jalan sampai user tekan Accept/Decline
+  // (call.store memanggil stopIncomingRing lewat plugin).
+  useEffect(() => {
+    if (!user || !Capacitor.isNativePlatform()) return
+    IncomingCall.consumePendingRingingCall()
       .then((r) => {
         if (!r.pending || !r.callId || !r.callType || !r.conversationId || !r.callerId) return
         const payload: WsCallIncomingPayload = {
@@ -105,9 +153,59 @@ function App() {
           from: { id: r.callerId, displayName: r.callerName ?? 'Someone' }
         }
         useCallStore.getState().incoming(payload)
-        void useCallStore.getState().accept()
       })
-      .catch((err) => console.error('[IncomingCall] consumePendingCall gagal:', err))
+      .catch((err) => console.error('[IncomingCall] consumePendingRingingCall gagal:', err))
+  }, [user])
+
+  // Notif "Jawab" ditekan saat app SUDAH hidup (onNewIntent tak memicu ulang
+  // useEffect consumePendingCall) -> event native 'answerNow' memaksa auto-accept
+  // langsung, tanpa perlu tekan Accept lagi di dialog dering.
+  useEffect(() => {
+    if (!user || !Capacitor.isNativePlatform()) return
+    const handlePromise = IncomingCall.addListener('answerNow', async () => {
+      const r = await IncomingCall.consumePendingCall()
+      if (!r.pending || !r.callId || !r.callType || !r.conversationId || !r.callerId) return
+      const payload: WsCallIncomingPayload = {
+        callId: r.callId,
+        conversationId: r.conversationId,
+        callType: r.callType as CallType,
+        sdp: {} as RTCSessionDescriptionInit,
+        from: { id: r.callerId, displayName: r.callerName ?? 'Someone' }
+      }
+      useChatStore.getState().selectConversation(r.conversationId)
+      setMobileView('chat')
+      await useCallStore.getState().acceptIncoming(payload)
+    })
+    return () => {
+      void handlePromise.then((h) => h.remove())
+    }
+  }, [user])
+
+  // ROBUST: begitu app kembali tampil ke layar (mis. user tekan "Jawab" di notif
+  // -> app dibuka), cek ulang panggilan tertunda lalu auto-accept. Lebih andal
+  // daripada event native yang bisa telat/hilang saat cold start di OEM tertentu.
+  useEffect(() => {
+    if (!user || !Capacitor.isNativePlatform()) return
+    const onVisible = (): void => {
+      if (document.visibilityState !== 'visible') return
+      IncomingCall.consumePendingCall()
+        .then(async (r) => {
+          if (!r.pending || !r.callId || !r.callType || !r.conversationId || !r.callerId) return
+          const payload: WsCallIncomingPayload = {
+            callId: r.callId,
+            conversationId: r.conversationId,
+            callType: r.callType as CallType,
+            sdp: {} as RTCSessionDescriptionInit,
+            from: { id: r.callerId, displayName: r.callerName ?? 'Someone' }
+          }
+          useChatStore.getState().selectConversation(r.conversationId)
+          setMobileView('chat')
+          await useCallStore.getState().acceptIncoming(payload)
+        })
+        .catch((err) => console.error('[IncomingCall] visibility answer gagal:', err))
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [user])
 
   // Listener menu native (main process) → buka dialog New User.
@@ -166,6 +264,14 @@ function App() {
               className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-md text-white"
             >
               Admin
+            </button>
+          )}
+          {user?.accountType === 'MODERATOR' && (
+            <button
+              onClick={() => navigate({ to: '/dbadmin' })}
+              className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-md text-white"
+            >
+              DB Admin
             </button>
           )}
           <span className="hidden sm:inline truncate max-w-[10rem]">

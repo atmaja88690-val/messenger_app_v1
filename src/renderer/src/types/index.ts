@@ -9,7 +9,7 @@ export interface User {
   username: string
   displayName: string
   email?: string
-  avatarKey?: string | null
+  avatarVersion?: number | null
   status: UserStatus
   accountType?: AccountType
   isActive?: boolean
@@ -80,7 +80,7 @@ export interface Conversation {
   id: string
   type: ConvType
   title?: string | null
-  avatarKey?: string | null
+  avatarVersion?: number | null
   lastMessageAt?: string | null
   lastReadSeq?: string         // STRING
   lastMessage?: Message | null

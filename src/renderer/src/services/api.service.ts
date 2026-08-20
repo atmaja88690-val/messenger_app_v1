@@ -192,7 +192,7 @@ export const usersApi = {
   uploadAvatar: (file: File) => {
     const form = new FormData()
     form.append('avatar', file)
-    return api.post('/attachments/avatar', form, {
+    return api.post('/users/me/avatar', form, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   }
@@ -217,6 +217,22 @@ export const adminApi = {
   deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
   setPassword: (id: string, password: string) =>
     api.patch(`/admin/users/${id}/password`, { password })
+}
+
+// DB Admin -- backup/restore database. Guard requireModerator() KETAT di
+// backend (BUKAN requireAdminOrModerator seperti adminApi di atas) --
+// hanya MODERATOR, ADMIN biasa TIDAK bisa akses endpoint ini.
+export const dbAdminApi = {
+  listBackups: () => api.get('/dbadmin/backups'),
+  createBackup: () => api.post('/dbadmin/backups', {}, { timeout: 125000 }),
+  downloadBackup: async (filename: string): Promise<Blob> => {
+    const res = await api.get(`/dbadmin/backups/${encodeURIComponent(filename)}/download`, {
+      responseType: 'blob'
+    })
+    return res.data
+  },
+  triggerRestore: (filename: string) => api.post('/dbadmin/restore', { filename }),
+  restoreStatus: () => api.get('/dbadmin/restore-status')
 }
 
 // Direktori user untuk memulai percakapan (bukan admin-only).
@@ -284,9 +300,10 @@ export const attachmentsApi = {
   // JANGAN di-cache global seperti blobCache di AttachmentImage.tsx -- avatarKey backend
   // deterministik per-user (avatars/{userId}.{ext}), jadi cache permanen bisa sajikan
   // avatar basi setelah user ganti foto. Cleanup blob URL jadi tanggung jawab komponen.
-  getAvatar: async (userId: string): Promise<string | null> => {
+  getAvatar: async (userId: string, version?: number | null): Promise<string | null> => {
     try {
-      const res = await api.get(`/attachments/avatar/${userId}`, {
+      const qs = version != null ? `?v=${version}` : ''
+      const res = await api.get(`/users/${userId}/avatar${qs}`, {
         responseType: 'blob'
       })
       return URL.createObjectURL(res.data)

@@ -311,7 +311,7 @@ export default function AdminPage() {
                         className="flex items-center gap-2.5 cursor-context-menu"
                         onContextMenu={(e) => { e.preventDefault(); setCtx({ u, x: e.clientX, y: e.clientY }) }}
                       >
-                        <Avatar userId={u.id} name={u.displayName} avatarKey={u.avatarKey} fallback="silhouette" className="w-8 h-8 rounded-full flex-shrink-0" />
+                        <Avatar userId={u.id} name={u.displayName} avatarVersion={u.avatarVersion} fallback="silhouette" className="w-8 h-8 rounded-full flex-shrink-0" />
                         <span className="truncate">
                           {u.displayName}
                           {self && <span className="ml-2 text-xs text-gray-400">(Anda)</span>}
@@ -351,7 +351,7 @@ export default function AdminPage() {
             return (
               <div key={u.id} className="bg-white border border-gray-200 rounded-xl p-3">
                 <div className="flex items-center gap-3">
-                  <Avatar userId={u.id} name={u.displayName} avatarKey={u.avatarKey} fallback="silhouette" className="w-10 h-10 rounded-full flex-shrink-0" />
+                  <Avatar userId={u.id} name={u.displayName} avatarVersion={u.avatarVersion} fallback="silhouette" className="w-10 h-10 rounded-full flex-shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="font-medium text-gray-900 truncate">{u.displayName}</span>

@@ -7,7 +7,7 @@ interface AvatarProps {
   className?: string
   // null  = server sudah bilang user ini TIDAK punya avatar -> jangan fetch.
   // undefined = pemanggil tidak tahu -> fetch seperti biasa (perilaku lama).
-  avatarKey?: string | null
+  avatarVersion?: number | null
   // 'initials' (default) = fallback huruf awal nama; 'silhouette' = ikon orang generik.
   fallback?: 'initials' | 'silhouette'
 }
@@ -18,16 +18,17 @@ function initials(name: string): string {
 
 // Avatar user tunggal (R3: blob-fetch + auth lewat attachmentsApi.getAvatar).
 // SENGAJA TIDAK memakai cache permanen seperti blobCache di AttachmentImage.tsx --
-// avatarKey backend deterministik per-user (avatars/{userId}.{ext}), jadi cache
-// permanen bisa menyajikan foto basi setelah user ganti avatar. Di-fetch ulang
-// tiap mount, blob URL di-revoke saat unmount ATAU saat userId berganti.
-export default function Avatar({ userId, name, className, avatarKey, fallback = 'initials' }: AvatarProps) {
+// avatarVersion naik tiap upload -> disisipkan sbg query ?v= di URL fetch, jadi
+// browser otomatis anggap URL beda tiap ganti foto (cache-bust otomatis, nol
+// perlu trik tambahan). Di-fetch ulang tiap mount, blob URL di-revoke saat
+// unmount ATAU saat userId/avatarVersion berganti.
+export default function Avatar({ userId, name, className, avatarVersion, fallback = 'initials' }: AvatarProps) {
   const [src, setSrc] = useState<string | null>(null)
 
   useEffect(() => {
     // Skip fetch kalau sudah pasti tidak ada avatar: hemat request dan
     // menghilangkan 404 yang mengotori console (menyamarkan error sungguhan).
-    if (avatarKey === null) {
+    if (avatarVersion === null) {
       setSrc(null)
       return
     }
@@ -36,7 +37,7 @@ export default function Avatar({ userId, name, className, avatarKey, fallback = 
     let objectUrl: string | null = null
 
     attachmentsApi
-      .getAvatar(userId)
+      .getAvatar(userId, avatarVersion)
       .then((url) => {
         if (cancelled) {
           if (url) URL.revokeObjectURL(url)
@@ -53,11 +54,11 @@ export default function Avatar({ userId, name, className, avatarKey, fallback = 
     return () => {
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
-      // Reset src saat userId berganti supaya tidak sekilas tampil avatar lama
-      // sebelum fetch avatar baru selesai.
+      // Reset src saat userId/avatarVersion berganti supaya tidak sekilas
+      // tampil avatar lama sebelum fetch avatar baru selesai.
       setSrc(null)
     }
-  }, [userId, avatarKey])
+  }, [userId, avatarVersion])
 
   const base = className ?? 'w-10 h-10 rounded-full flex-shrink-0'
 

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { callService } from '../services/call.service'
 import { wsService } from '../services/ws.service'
+import { Capacitor, registerPlugin } from '@capacitor/core'
 import type {
   CallType,
   CallPeer,
@@ -8,6 +9,13 @@ import type {
   WsCallAcceptedPayload,
   WsCallEndedPayload,
 } from '../types'
+
+const IncomingCallNative = registerPlugin<{ stopIncomingRing(): Promise<void> }>('IncomingCall')
+// Hentikan dering/getar foreground service native saat panggilan dijawab/ditolak.
+function stopNativeRing(): void {
+  if (Capacitor.isNativePlatform()) void IncomingCallNative.stopIncomingRing()
+}
+let accepting = false
 
 export type CallPhase = 'idle' | 'calling' | 'ringing' | 'active' | 'ended'
 
@@ -28,6 +36,7 @@ interface CallStore {
   onCreated: (callId: string, callType: CallType) => Promise<void>
   incoming: (p: WsCallIncomingPayload) => void
   accept: () => Promise<void>
+  acceptIncoming: (p: WsCallIncomingPayload) => Promise<void>
   reject: () => void
   hangup: () => void
   onAccepted: (p: WsCallAcceptedPayload) => Promise<void>
@@ -99,6 +108,9 @@ export const useCallStore = create<CallStore>((set, get) => ({
 
   accept: async () => {
     if (pendingIncoming === null) return
+    if (accepting || get().phase === 'active') return
+    accepting = true
+    stopNativeRing()
     try {
       await callService.acceptCall(pendingIncoming)
       set({ phase: 'active' })
@@ -107,10 +119,32 @@ export const useCallStore = create<CallStore>((set, get) => ({
       wsService.send('call_reject', { callId: pendingIncoming.callId })
       callService.cleanup()
       pendingIncoming = null
+    } finally {
+      accepting = false
     }
   },
 
+  // Terima panggilan dari tombol Jawab notif: join room LANGSUNG, bypass guard
+  // incoming() yg bisa menolak saat jalur WS & jalur notif bertabrakan.
+  acceptIncoming: async (p) => {
+    if (accepting || get().phase === 'active') return
+    accepting = true
+    stopNativeRing()
+    pendingIncoming = p
+    set({ phase: 'calling', callId: p.callId, callType: p.callType, peer: p.from, conversationId: p.conversationId, error: null })
+    try {
+      await callService.acceptCall(p)
+      set({ phase: 'active' })
+    } catch (err) {
+      set({ ...initial, error: (err as Error).message })
+      callService.cleanup()
+      pendingIncoming = null
+    } finally {
+      accepting = false
+    }
+  },
   reject: () => {
+    stopNativeRing()
     const id = get().callId
     if (id !== null) wsService.send('call_reject', { callId: id })
     callService.cleanup()
