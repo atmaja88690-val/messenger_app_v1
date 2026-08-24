@@ -7,6 +7,9 @@ import httpProxy from 'http-proxy'
 // di electron.vite.config.ts, supaya perilaku prod meniru dev yang sudah terbukti jalan.
 const BACKEND_ORIGIN = 'https://chat.bsilongevity.com:4443'
 const BACKEND_WS_ORIGIN = 'wss://chat.bsilongevity.com:4443'
+// Port TETAP (bukan acak): origin http://127.0.0.1:<port> harus stabil antar-restart
+// supaya localStorage (token sesi) tidak hangus tiap app dibuka ulang -> tetap login.
+const LOCAL_PORT = 39271
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -77,16 +80,27 @@ export function startLocalServer(rendererRoot: string): Promise<string> {
   })
 
   return new Promise((resolve, reject) => {
-    server.once('error', reject)
-    // 127.0.0.1 SAJA -- port acak (listen(0)), dan JANGAN 0.0.0.0, supaya
-    // server ini tidak ter-ekspos ke LAN, cuma bisa diakses proses lokal ini.
-    server.listen(0, '127.0.0.1', () => {
+    const onListen = (): void => {
       const addr = server.address()
       if (addr === null || typeof addr === 'string') {
         reject(new Error('Local server: alamat tidak valid setelah listen()'))
         return
       }
       resolve(`http://127.0.0.1:${addr.port}`)
+    }
+    server.on('error', (err: NodeJS.ErrnoException) => {
+      // Port TETAP sibuk (mis. instance lama belum lepas soket). Fallback ke port
+      // acak supaya app tetap terbuka; single-instance lock di main membuat tabrakan
+      // dengan diri sendiri praktis mustahil, jadi ini hanya jaring pengaman.
+      if (err.code === 'EADDRINUSE') {
+        console.warn('[local-server] LOCAL_PORT sibuk -> fallback port acak (sesi login bisa tak persist sekali ini)')
+        server.listen(0, '127.0.0.1', onListen)
+        return
+      }
+      reject(err)
     })
+    // 127.0.0.1 SAJA + port TETAP (LOCAL_PORT): origin stabil antar-restart supaya
+    // localStorage (token sesi) awet -> tetap login. JANGAN 0.0.0.0 (tak ter-ekspos LAN).
+    server.listen(LOCAL_PORT, '127.0.0.1', onListen)
   })
 }

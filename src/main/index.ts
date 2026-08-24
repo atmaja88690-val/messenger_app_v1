@@ -56,6 +56,7 @@ function createTray(): void {
 // (app.get/setLoginItemSettings), supaya tidak ada drift dua sumber kebenaran.
 interface AppSettings {
   downloadDir?: string
+  openAtLoginInitialized?: boolean
 }
 
 const settingsPath = (): string => join(app.getPath('userData'), 'settings.json')
@@ -202,12 +203,39 @@ function createWindow(): void {
   }
 }
 
+// Single-instance lock: cegah app jalan dobel. Instance kedua langsung quit,
+// instance pertama memunculkan window-nya (klik ikon/relaunch = fokus). Wajib
+// supaya LOCAL_PORT tetap tidak bentrok dengan diri sendiri.
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  app.quit()
+}
+app.on('second-instance', () => {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+})
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
+  if (!gotTheLock) return
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.bsi.messenger')
+  // Virola-style: aktifkan auto-start saat login Windows secara DEFAULT, tapi
+  // hanya SEKALI (saat pertama app dijalankan). Setelah itu hormati pilihan user
+  // lewat Tools -> Settings (openAtLogin). Flag disimpan di settings.json.
+  try {
+    const s0 = await readSettings()
+    if (!s0.openAtLoginInitialized) {
+      app.setLoginItemSettings({ openAtLogin: true })
+      await writeSettings({ openAtLoginInitialized: true })
+    }
+  } catch (e) {
+    console.error('[main] gagal set openAtLogin default:', e)
+  }
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
