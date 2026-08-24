@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useAuthStore } from './stores/auth.store'
+import { useAuthStore, restoreAuthTokensFromPreferences } from './stores/auth.store'
 import Sidebar from './components/chat/Sidebar'
 import ChatArea from './components/chat/ChatArea'
 import ContactInfoPanel from './components/chat/ContactInfoPanel'
@@ -84,10 +84,16 @@ function App() {
   useEffect(() => {
     if (bootstrapped.current) return
     bootstrapped.current = true
-    const s = useAuthStore.getState()
-    if (!s.isAuthenticated && !s.user && localStorage.getItem('bsi_access_token')) {
-      s.loadMe()
-    }
+    void (async () => {
+      // Restore token dari Capacitor Preferences (Android WebView bisa wipe
+      // localStorage saat app di-kill sistem) SEBELUM cek localStorage --
+      // no-op aman di Electron/desktop.
+      await restoreAuthTokensFromPreferences()
+      const s = useAuthStore.getState()
+      if (!s.isAuthenticated && !s.user && localStorage.getItem('bsi_access_token')) {
+        s.loadMe()
+      }
+    })()
   }, [])
 
   // Register FCM push (Android saja; NO-OP di Electron via guard di service).

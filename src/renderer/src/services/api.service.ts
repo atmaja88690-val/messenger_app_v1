@@ -40,6 +40,8 @@ function isAuthRejection(err: unknown): boolean {
 function hardLogout() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(REFRESH_KEY)
+  Preferences.remove({ key: TOKEN_KEY }).catch(() => {})
+  Preferences.remove({ key: REFRESH_KEY }).catch(() => {})
   clearProactiveRefresh()
   window.dispatchEvent(new Event('bsi:logout'))
 }
@@ -64,8 +66,9 @@ async function performTokenRefresh(): Promise<string | null> {
       { timeout: 15000 }
     )
     localStorage.setItem(TOKEN_KEY, data.accessToken)
-      Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
+    Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
     localStorage.setItem(REFRESH_KEY, data.refreshToken)
+    Preferences.set({ key: REFRESH_KEY, value: data.refreshToken }).catch(() => {})
 
     scheduleProactiveRefresh(data.accessToken, async () => {
       const newToken = await performTokenRefresh()

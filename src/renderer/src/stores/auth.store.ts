@@ -47,6 +47,7 @@ function startProactiveRefreshCycle(accessToken: string): void {
       localStorage.setItem(TOKEN_KEY, data.accessToken)
       Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
       localStorage.setItem(REFRESH_KEY, data.refreshToken)
+      Preferences.set({ key: REFRESH_KEY, value: data.refreshToken }).catch(() => {})
 
       wsService.disconnect()
       setTimeout(() => wsService.connect(), 300)
@@ -58,6 +59,27 @@ function startProactiveRefreshCycle(accessToken: string): void {
       console.warn('[auth.store] Proactive refresh gagal, mengandalkan reactive sebagai fallback.')
     }
   })
+}
+
+/**
+ * Restore token dari Capacitor Preferences (native, tahan app-kill) ke localStorage.
+ * WebView Android bisa menghapus localStorage saat app di-kill sistem -- Preferences
+ * tidak ikut terhapus. Dipanggil App.tsx SEBELUM loadMe() saat boot, HANYA kalau
+ * localStorage kosong (tidak menimpa sesi localStorage yang masih hidup/lebih baru).
+ * No-op aman di Electron (Preferences kosong kalau belum pernah di-set di situ).
+ */
+export async function restoreAuthTokensFromPreferences(): Promise<void> {
+  if (localStorage.getItem(TOKEN_KEY)) return
+  try {
+    const [{ value: access }, { value: refresh }] = await Promise.all([
+      Preferences.get({ key: TOKEN_KEY }),
+      Preferences.get({ key: REFRESH_KEY })
+    ])
+    if (access) localStorage.setItem(TOKEN_KEY, access)
+    if (refresh) localStorage.setItem(REFRESH_KEY, refresh)
+  } catch (e) {
+    console.error('[auth.store] Gagal restore token dari Preferences:', e)
+  }
 }
 
 // HMR-safe: module-level ref agar listener lama tidak menumpuk saat hot-replace
@@ -74,6 +96,8 @@ export const useAuthStore = create<AuthState>((set) => {
       wsService.disconnect()
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(REFRESH_KEY)
+      Preferences.remove({ key: TOKEN_KEY }).catch(() => {})
+      Preferences.remove({ key: REFRESH_KEY }).catch(() => {})
       set({ user: null, isAuthenticated: false, error: null, isLoading: false })
     }
     window.addEventListener('bsi:logout', _bsiLogoutHandler)
@@ -105,8 +129,9 @@ export const useAuthStore = create<AuthState>((set) => {
       try {
         const { data } = await authApi.login(username, password)
         localStorage.setItem(TOKEN_KEY, data.accessToken)
-      Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
+        Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
         localStorage.setItem(REFRESH_KEY, data.refreshToken)
+        Preferences.set({ key: REFRESH_KEY, value: data.refreshToken }).catch(() => {})
         set({ user: data.user, isAuthenticated: true, isLoading: false })
         wsService.connect()
         startProactiveRefreshCycle(data.accessToken)
@@ -129,6 +154,8 @@ export const useAuthStore = create<AuthState>((set) => {
       }
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(REFRESH_KEY)
+      Preferences.remove({ key: TOKEN_KEY }).catch(() => {})
+      Preferences.remove({ key: REFRESH_KEY }).catch(() => {})
       set({ user: null, isAuthenticated: false, error: null })
     },
 
@@ -153,6 +180,8 @@ export const useAuthStore = create<AuthState>((set) => {
         clearProactiveRefresh()
         localStorage.removeItem(TOKEN_KEY)
         localStorage.removeItem(REFRESH_KEY)
+        Preferences.remove({ key: TOKEN_KEY }).catch(() => {})
+        Preferences.remove({ key: REFRESH_KEY }).catch(() => {})
         set({ user: null, isAuthenticated: false, isLoading: false })
       }
     },
