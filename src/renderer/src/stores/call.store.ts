@@ -29,6 +29,7 @@ interface CallStore {
   remoteStream: MediaStream | null
   micOn: boolean
   camOn: boolean
+  speakerOn: boolean
   error: string | null
   reconnecting: boolean
 
@@ -43,6 +44,7 @@ interface CallStore {
   onEnded: (p: WsCallEndedPayload, missed: boolean) => void
   toggleMic: () => void
   toggleCam: () => void
+  toggleSpeaker: () => Promise<void>
   reset: () => void
   setError: (msg: string) => void
 }
@@ -57,6 +59,7 @@ const initial = {
   remoteStream: null,
   micOn: true,
   camOn: true,
+  speakerOn: false,
   error: null,
   reconnecting: false,
 }
@@ -67,7 +70,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
   setError: (msg) => set({ error: msg }),
 
   startCall: async (conversationId, callType, peer) => {
-    set({ phase: 'calling', callType, peer, conversationId, error: null })
+      set({ phase: 'calling', callType, peer, conversationId, error: null, speakerOn: callType === 'VIDEO' })
     try {
       await callService.startCall(conversationId, callType)
     } catch (err) {
@@ -101,6 +104,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
       peer: p.from,
       conversationId: p.conversationId,
       error: null,
+      speakerOn: p.callType === 'VIDEO',
     })
     // Simpan payload untuk dipakai accept()
     pendingIncoming = p
@@ -131,7 +135,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
     accepting = true
     stopNativeRing()
     pendingIncoming = p
-    set({ phase: 'calling', callId: p.callId, callType: p.callType, peer: p.from, conversationId: p.conversationId, error: null })
+    set({ phase: 'calling', callId: p.callId, callType: p.callType, peer: p.from, conversationId: p.conversationId, error: null, speakerOn: p.callType === 'VIDEO' })
     try {
       await callService.acceptCall(p)
       set({ phase: 'active' })
@@ -186,6 +190,14 @@ export const useCallStore = create<CallStore>((set, get) => ({
     callService.toggleCam(next)
     set({ camOn: next })
   },
+
+    // Rute ditentukan NATIVE (AudioManager), bukan elemen <video>.
+    // Simpan balikan native, bukan nilai yang diminta.
+    toggleSpeaker: async () => {
+      const next = get().speakerOn === false
+      const actual = await callService.setSpeaker(next)
+      set({ speakerOn: actual })
+    },
 
   reset: () => {
     callService.cleanup()

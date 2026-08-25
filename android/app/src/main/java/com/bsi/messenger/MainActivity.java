@@ -17,6 +17,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ClipboardImagePlugin.class);
         registerPlugin(IncomingCallPlugin.class);
         registerPlugin(BatteryOptimizationPlugin.class);
+        registerPlugin(AudioRoutePlugin.class);
         super.onCreate(savedInstanceState);
         handleIntent(getIntent());
     }

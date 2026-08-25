@@ -1,4 +1,5 @@
 import api from './api.service'
+import { audioRoute } from './audio-route.service'
 import { wsService } from './ws.service'
 import { Room, RoomEvent, Track, createLocalTracks, VideoPresets } from 'livekit-client'
 import type { LocalTrack, RemoteTrack, RemoteParticipant } from 'livekit-client'
@@ -171,6 +172,11 @@ class CallService {
     }
     this.localTracks = tracks
 
+    // Rute audio: voice -> earpiece, video -> speaker (ala WhatsApp).
+    // WAJIB sebelum track dipublish; WebView default memutar lewat
+    // stream MUSIK yang selalu keluar ke loudspeaker. No-op di Electron.
+    await audioRoute.start(callType === 'VIDEO')
+
     const localStream = new MediaStream()
     for (const t of tracks) {
       if (t.mediaStreamTrack !== undefined) localStream.addTrack(t.mediaStreamTrack)
@@ -250,8 +256,16 @@ class CallService {
     }
   }
 
+    // Pindah earpiece <-> speaker saat panggilan berjalan. Balikan =
+    // rute yang BENAR-BENAR dipakai native (headset kabel/Bluetooth
+    // menang atas permintaan ini, jadi UI harus ikut balikan).
+    async setSpeaker(on: boolean): Promise<boolean> {
+      return audioRoute.setSpeaker(on)
+    }
+
   // WAJIB -- track yang tidak di-stop menahan lampu kamera menyala.
   cleanup(): void {
+      void audioRoute.stop()
     for (const t of this.localTracks) t.stop()
     this.localTracks = []
     this.remoteStream = null

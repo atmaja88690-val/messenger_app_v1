@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { useCallStore } from '../../stores/call.store'
-import { IconMic, IconMicOff, IconVideo, IconVideoOff, IconPhoneOff } from './CallIcons'
+import { IconMic, IconMicOff, IconVideo, IconVideoOff, IconPhoneOff, IconSpeaker, IconEarpiece } from './CallIcons'
 
 export default function CallOverlay(): React.JSX.Element | null {
   const phase = useCallStore((s) => s.phase)
@@ -10,6 +10,7 @@ export default function CallOverlay(): React.JSX.Element | null {
   const remoteStream = useCallStore((s) => s.remoteStream)
   const micOn = useCallStore((s) => s.micOn)
   const camOn = useCallStore((s) => s.camOn)
+  const speakerOn = useCallStore((s) => s.speakerOn)
   const error = useCallStore((s) => s.error)
   const reconnecting = useCallStore((s) => s.reconnecting)
   const accept = useCallStore((s) => s.accept)
@@ -17,6 +18,7 @@ export default function CallOverlay(): React.JSX.Element | null {
   const hangup = useCallStore((s) => s.hangup)
   const toggleMic = useCallStore((s) => s.toggleMic)
   const toggleCam = useCallStore((s) => s.toggleCam)
+  const toggleSpeaker = useCallStore((s) => s.toggleSpeaker)
 
   const localRef = useRef<HTMLVideoElement>(null)
   const remoteRef = useRef<HTMLVideoElement>(null)
@@ -44,6 +46,8 @@ export default function CallOverlay(): React.JSX.Element | null {
       : phase === 'ringing' ? (isVideo ? 'Incoming video call' : 'Incoming voice call')
       : phase === 'active' ? (reconnecting ? 'Reconnecting...' : 'Connected')
       : 'Call ended'
+
+  const speakerLabel = speakerOn ? 'Switch to earpiece' : 'Switch to speaker'
 
   // Video yang sudah/sedang berjalan -> layar penuh. Ringing (video/voice) dan voice call -> kartu.
   const useFullscreenVideo = isVideo && isActiveOrCalling
@@ -93,6 +97,15 @@ export default function CallOverlay(): React.JSX.Element | null {
             className={'flex h-14 w-14 items-center justify-center rounded-full text-white ' + (camOn ? 'bg-white/20 hover:bg-white/30' : 'bg-red-600 hover:bg-red-500')}
           >
             {camOn ? <IconVideo /> : <IconVideoOff />}
+          </button>
+          <button
+            type="button"
+            onClick={() => { void toggleSpeaker() }}
+            aria-label={speakerLabel}
+            title={speakerLabel}
+            className={'flex h-14 w-14 items-center justify-center rounded-full text-white ' + (speakerOn ? 'bg-white/40 hover:bg-white/50' : 'bg-white/20 hover:bg-white/30')}
+          >
+            {speakerOn ? <IconSpeaker /> : <IconEarpiece />}
           </button>
           <button
             type="button"
@@ -157,6 +170,15 @@ export default function CallOverlay(): React.JSX.Element | null {
                 className={'rounded-full px-4 py-3 ' + (micOn ? 'bg-slate-600 hover:bg-slate-500' : 'bg-red-600 hover:bg-red-500')}
               >
                 {micOn ? <IconMic /> : <IconMicOff />}
+              </button>
+              <button
+                type="button"
+                onClick={() => { void toggleSpeaker() }}
+                aria-label={speakerLabel}
+                title={speakerLabel}
+                className={'rounded-full px-4 py-3 ' + (speakerOn ? 'bg-slate-400 hover:bg-slate-300 text-slate-900' : 'bg-slate-600 hover:bg-slate-500')}
+              >
+                {speakerOn ? <IconSpeaker /> : <IconEarpiece />}
               </button>
               <button
                 type="button"
