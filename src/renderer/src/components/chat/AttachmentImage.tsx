@@ -22,6 +22,24 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 }
 
+// Clipboard Electron (nativeImage) HANYA paham PNG/JPEG - WebP/AVIF ditolak
+// dgn "Format gambar tidak didukung clipboard". Transcode lewat canvas:
+// kalau Chromium bisa MERENDER gambarnya, pasti bisa di-encode ulang.
+async function toPngBytes(blobUrl: string): Promise<Uint8Array> {
+  const blob = await (await fetch(blobUrl)).blob()
+  const bitmap = await createImageBitmap(blob)
+  const canvas = document.createElement('canvas')
+  canvas.width = bitmap.width
+  canvas.height = bitmap.height
+  const ctx = canvas.getContext('2d')
+  if (ctx === null) throw new Error('Canvas 2D tidak tersedia')
+  ctx.drawImage(bitmap, 0, 0)
+  bitmap.close()
+  const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+  if (png === null) throw new Error('Gagal encode PNG')
+  return new Uint8Array(await png.arrayBuffer())
+}
+
 interface Props {
   attachment: AttachmentWithLocal
   messageId: string
@@ -33,6 +51,8 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
   const deleteMessage = useChatStore((s) => s.deleteMessage)
   const [src, setSrc] = useState<string | null>(attachment._localUrl ?? blobCache.get(attachment.id) ?? null)
   const [error, setError] = useState(false)
+  const [errDetail, setErrDetail] = useState<string>('')
+  const [reloadKey, setReloadKey] = useState(0)
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
   const [infoOpen, setInfoOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -63,7 +83,12 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
 
   useEffect(() => {
     if (attachment._localUrl || blobCache.has(attachment.id)) return
-    if (!attachment.id || attachment.id.includes('-')) return
+    // Lampiran optimistic (belum ter-upload) sudah dilayani _localUrl di atas
+    // dan ditandai storageKey kosong. JANGAN pakai id.includes('-'): id server
+    // = cuid (tak pernah ada '-'), sedangkan id optimistic = nanoid yang HANYA
+    // kadang mengandung '-' -> guard lama lolos/menahan secara acak.
+    if (!attachment.id) return
+    if (attachment.storageKey === '') return
 
     let cancelled = false
     attachmentsApi
@@ -73,14 +98,23 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
         blobCache.set(attachment.id, url)
         setSrc(url)
       })
-      .catch(() => {
-        if (!cancelled) setError(true)
-      })
+        .catch((err) => {
+          if (cancelled) return
+          // Tanpa detail ini, bug attachment di Android mustahil didiagnosa
+          // tanpa kabel USB. Tampilkan status/kode aslinya di layar.
+          const status = (err as { response?: { status?: number } })?.response?.status
+          const code = (err as { code?: string })?.code
+          const msg = (err as { message?: string })?.message
+          const detail = status != null ? ('HTTP ' + status) : (code ?? msg ?? 'unknown error')
+          console.error('[AttachmentImage] getFile gagal', attachment.id, detail, err)
+          setErrDetail(detail)
+          setError(true)
+        })
 
     return () => {
       cancelled = true
     }
-  }, [attachment.id])
+  }, [attachment.id, reloadKey])
 
   const openMenu = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -169,8 +203,8 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
     }
     if (!window.api?.copyImage) return
     try {
-      const buf = await (await fetch(src)).arrayBuffer()
-      const res = await window.api.copyImage(new Uint8Array(buf))
+        const bytes = await toPngBytes(src)
+        const res = await window.api.copyImage(bytes)
       if (!res.ok) {
         console.error('[AttachmentImage] copyImage gagal', res.error)
         alert(`Failed to copy image: ${res.error}`)
@@ -194,9 +228,16 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
 
   if (error) {
     return (
-      <div className="w-48 h-32 flex items-center justify-center bg-gray-800 rounded-lg text-gray-500 text-xs">
-        Failed to load image
-      </div>
+      <button
+        type="button"
+        onClick={() => { setError(false); setErrDetail(''); setReloadKey((k) => k + 1) }}
+        className="w-48 h-32 flex flex-col items-center justify-center gap-1 bg-gray-800 rounded-lg text-gray-400 text-xs px-2 text-center"
+        title="Tap to retry"
+      >
+        <span>Failed to load image</span>
+        {errDetail !== '' && <span className="text-[10px] text-red-400 break-all">{errDetail}</span>}
+        <span className="text-[10px] text-gray-500">Tap to retry</span>
+      </button>
     )
   }
 

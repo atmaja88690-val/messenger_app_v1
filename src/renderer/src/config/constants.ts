@@ -27,7 +27,7 @@ export const NOTIF_SOUND_KEY = 'bsi_notif_sound'
 
 // === App info (About dialog) — EDIT DI SINI saat rilis versi baru ===
 export const APP_NAME = 'BSI Messenger'
-export const APP_VERSION = '1.0.9'
+export const APP_VERSION = '1.1.0'
 export const APP_COPYRIGHT = `© ${new Date().getFullYear()} BSI International. All rights reserved.`
 
 // URL server penuh untuk ditampilkan (read-only) di Settings.
