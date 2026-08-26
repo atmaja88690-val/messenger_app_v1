@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core'
 import { PushNotifications } from '@capacitor/push-notifications'
 import api from './api.service'
 
-// FCM push untuk Android (Capacitor). NO-OP di Electron/web —
+// Push notifikasi perangkat NATIVE (Capacitor). NO-OP di Electron/web —
 // desktop tetap pakai notification.service.ts (WS-based). Jangan campur.
 //
 // Alur: guard native -> minta izin -> register() -> event 'registration'
@@ -28,7 +28,12 @@ export async function registerPushAndroid(): Promise<void> {
         // token.value = FCM registration token (string polos).
         // subscription DIKIRIM sebagai string -> backend JSON.stringify -> JSON.parse balik.
         await api.post('/push/subscribe', {
-          platform: 'ANDROID',
+          // JANGAN hardcode. Guard di atas hanya isNativePlatform(), jadi iOS
+          // juga sampai ke sini dan token-nya adalah device token APNs --
+          // bukan token FCM. Backend sudah menerima IOS (enum PushPlatform
+          // dan whitelist di push.routes.ts), tapi cabang PENGIRIMNYA belum
+          // ada di lib/push.ts, jadi token IOS untuk sementara dilewati diam.
+          platform: Capacitor.getPlatform() === 'ios' ? 'IOS' : 'ANDROID',
           subscription: token.value
         })
         console.log('[PushAndroid] token terdaftar ke backend')
