@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { callService } from '../services/call.service'
 import { wsService } from '../services/ws.service'
-import { Capacitor, registerPlugin } from '@capacitor/core'
+import { callUi } from '../platform'
 import type {
   CallType,
   CallPeer,
@@ -10,11 +10,6 @@ import type {
   WsCallEndedPayload,
 } from '../types'
 
-const IncomingCallNative = registerPlugin<{ stopIncomingRing(): Promise<void> }>('IncomingCall')
-// Hentikan dering/getar foreground service native saat panggilan dijawab/ditolak.
-function stopNativeRing(): void {
-  if (Capacitor.isNativePlatform()) void IncomingCallNative.stopIncomingRing()
-}
 let accepting = false
 
 export type CallPhase = 'idle' | 'calling' | 'ringing' | 'active' | 'ended'
@@ -114,7 +109,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
     if (pendingIncoming === null) return
     if (accepting || get().phase === 'active') return
     accepting = true
-    stopNativeRing()
+    void callUi.reportAnswered(pendingIncoming.callId)
     try {
       await callService.acceptCall(pendingIncoming)
       set({ phase: 'active' })
@@ -133,7 +128,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
   acceptIncoming: async (p) => {
     if (accepting || get().phase === 'active') return
     accepting = true
-    stopNativeRing()
+    void callUi.reportAnswered(p.callId)
     pendingIncoming = p
     set({ phase: 'calling', callId: p.callId, callType: p.callType, peer: p.from, conversationId: p.conversationId, error: null, speakerOn: p.callType === 'VIDEO' })
     try {
@@ -148,8 +143,8 @@ export const useCallStore = create<CallStore>((set, get) => ({
     }
   },
   reject: () => {
-    stopNativeRing()
     const id = get().callId
+    void callUi.reportEnded(id ?? '', 'declined')
     if (id !== null) wsService.send('call_reject', { callId: id })
     callService.cleanup()
     pendingIncoming = null

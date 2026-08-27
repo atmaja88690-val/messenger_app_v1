@@ -13,7 +13,8 @@ import SettingsDialog from './components/settings/SettingsDialog'
 import UserProfileDialog from './components/users/UserProfileDialog'
 import AboutDialog from './components/settings/AboutDialog'
 import AppMenu from './components/AppMenu'
-import { Capacitor, registerPlugin } from '@capacitor/core'
+import { callUi } from './platform'
+import type { CallUiEvent, IncomingCallDescriptor } from './platform'
 import { registerPushAndroid } from './services/push-android.service'
 import { requestBatteryOptimizationExemption } from './services/battery-optimization.service'
 import { useChatStore } from './stores/chat.store'
@@ -24,25 +25,18 @@ import type { CallType, WsCallIncomingPayload } from './types'
 // Di dalam komponen akan terdaftar ulang tiap remount/HMR.
 initCallBridge()
 
-interface IncomingCallResult {
-  pending: boolean
-  callId?: string
-  callType?: string
-  conversationId?: string
-  callerId?: string
-  callerName?: string
+// Adapter memberi bentuk netral platform; infra call yang SUDAH ADA menerima
+// WsCallIncomingPayload. sdp kosong disengaja -- SFU tidak memakainya (lihat
+// call.service.ts onAccepted), dipertahankan agar kontrak store tidak berubah.
+function toWsPayload(call: IncomingCallDescriptor): WsCallIncomingPayload {
+  return {
+    callId: call.callId,
+    conversationId: call.conversationId,
+    callType: call.callType as CallType,
+    sdp: {} as RTCSessionDescriptionInit,
+    from: { id: call.callerId, displayName: call.callerName }
+  }
 }
-interface IncomingCallPlugin {
-  consumePendingCall(): Promise<IncomingCallResult>
-  consumePendingOpenConversation(): Promise<{ pending: boolean; conversationId?: string }>
-  consumePendingRingingCall(): Promise<IncomingCallResult>
-  stopIncomingRing(): Promise<void>
-  addListener(
-    eventName: 'answerNow',
-    listenerFunc: () => void
-  ): Promise<{ remove: () => Promise<void> }>
-}
-const IncomingCall = registerPlugin<IncomingCallPlugin>('IncomingCall')
 
 type Section = 'chats' | 'inbox' | 'broadcast' | 'templates' | 'analytics'
 
@@ -104,115 +98,50 @@ function App() {
     }
   }, [user])
 
-  // Fase B: app dibuka dari full-screen intent notif call (BsimMessagingService)
-  // - baik cold start maupun dari lockscreen. Sekali per user-loaded (gate auth,
-  // pola sama dgn registerPushAndroid di atas), baca data call tertunda dari
-  // native lalu sintesis payload persis bentuk WsCallIncomingPayload (sdp dummy,
-  // TAK dipakai di SFU - lihat call.service.ts onAccepted), pakai infra call yg
-  // SUDAH ADA (incoming+accept), bukan jalur baru.
+  // SATU pintu masuk untuk semua peristiwa UI panggilan. Menggantikan LIMA
+  // useEffect terpisah yang sebelumnya menduplikasi blok yang sama tiga kali
+  // (bangun payload -> selectConversation -> setMobileView -> acceptIncoming).
+  // Komponen ini tidak lagi tahu-menahu soal plugin native; adapter platform
+  // yang menerjemahkan mekanisme tiap OS menjadi peristiwa yang sama.
   useEffect(() => {
-    if (!user || !Capacitor.isNativePlatform()) return
-    IncomingCall.consumePendingCall()
-      .then(async (r) => {
-        if (!r.pending || !r.callId || !r.callType || !r.conversationId || !r.callerId) return
-        const payload: WsCallIncomingPayload = {
-          callId: r.callId,
-          conversationId: r.conversationId,
-          callType: r.callType as CallType,
-          sdp: {} as RTCSessionDescriptionInit,
-          from: { id: r.callerId, displayName: r.callerName ?? 'Someone' }
-        }
+    if (!user || !callUi.supported) return
+
+    const off = callUi.on((e: CallUiEvent) => {
+      if (e.kind === 'answered') {
         // Buka percakapan pemanggil + tampilkan area chat DULU supaya CallOverlay
         // (dirender di dalam ChatArea) terlihat. Di mobile, view 'list'
         // menyembunyikan ChatArea -> call UI tak tampak walau sudah tersambung.
-        useChatStore.getState().selectConversation(r.conversationId)
+        useChatStore.getState().selectConversation(e.call.conversationId)
         setMobileView('chat')
-        await useCallStore.getState().acceptIncoming(payload)
-      })
-      .catch((err) => console.error('[IncomingCall] consumePendingCall gagal:', err))
-  }, [user])
-
-  useEffect(() => {
-    if (!user || !Capacitor.isNativePlatform()) return
-    IncomingCall.consumePendingOpenConversation()
-      .then((r) => {
-        if (!r.pending || !r.conversationId) return
-        useChatStore.getState().selectConversation(r.conversationId)
-        setMobileView('chat')
-      })
-      .catch((err) => console.error('[IncomingCall] consumePendingOpenConversation gagal:', err))
-  }, [user])
-
-  // Full-screen intent (HP terkunci) -> tampilkan layar DERING (Accept/Decline),
-  // BUKAN auto-accept. Dering native tetap jalan sampai user tekan Accept/Decline
-  // (call.store memanggil stopIncomingRing lewat plugin).
-  useEffect(() => {
-    if (!user || !Capacitor.isNativePlatform()) return
-    IncomingCall.consumePendingRingingCall()
-      .then((r) => {
-        if (!r.pending || !r.callId || !r.callType || !r.conversationId || !r.callerId) return
-        const payload: WsCallIncomingPayload = {
-          callId: r.callId,
-          conversationId: r.conversationId,
-          callType: r.callType as CallType,
-          sdp: {} as RTCSessionDescriptionInit,
-          from: { id: r.callerId, displayName: r.callerName ?? 'Someone' }
-        }
-        useCallStore.getState().incoming(payload)
-      })
-      .catch((err) => console.error('[IncomingCall] consumePendingRingingCall gagal:', err))
-  }, [user])
-
-  // Notif "Jawab" ditekan saat app SUDAH hidup (onNewIntent tak memicu ulang
-  // useEffect consumePendingCall) -> event native 'answerNow' memaksa auto-accept
-  // langsung, tanpa perlu tekan Accept lagi di dialog dering.
-  useEffect(() => {
-    if (!user || !Capacitor.isNativePlatform()) return
-    const handlePromise = IncomingCall.addListener('answerNow', async () => {
-      const r = await IncomingCall.consumePendingCall()
-      if (!r.pending || !r.callId || !r.callType || !r.conversationId || !r.callerId) return
-      const payload: WsCallIncomingPayload = {
-        callId: r.callId,
-        conversationId: r.conversationId,
-        callType: r.callType as CallType,
-        sdp: {} as RTCSessionDescriptionInit,
-        from: { id: r.callerId, displayName: r.callerName ?? 'Someone' }
+        void useCallStore.getState().acceptIncoming(toWsPayload(e.call))
+        return
       }
-      useChatStore.getState().selectConversation(r.conversationId)
-      setMobileView('chat')
-      await useCallStore.getState().acceptIncoming(payload)
+      if (e.kind === 'ringing') {
+        // Tampilkan layar DERING (Accept/Decline), BUKAN auto-accept.
+        useCallStore.getState().incoming(toWsPayload(e.call))
+        return
+      }
+      if (e.kind === 'openConversation') {
+        useChatStore.getState().selectConversation(e.conversationId)
+        setMobileView('chat')
+        return
+      }
+      // 'declined' dan 'ended' BELUM diemisikan adapter Android -- keduanya
+      // disiapkan untuk CallKit, yang memberitahu kita lewat delegate.
+      if (e.kind === 'declined') useCallStore.getState().reject()
+      if (e.kind === 'ended') useCallStore.getState().hangup()
     })
+
+    void callUi.start()
     return () => {
-      void handlePromise.then((h) => h.remove())
+      off()
+      void callUi.stop()
     }
   }, [user])
 
-  // ROBUST: begitu app kembali tampil ke layar (mis. user tekan "Jawab" di notif
-  // -> app dibuka), cek ulang panggilan tertunda lalu auto-accept. Lebih andal
-  // daripada event native yang bisa telat/hilang saat cold start di OEM tertentu.
-  useEffect(() => {
-    if (!user || !Capacitor.isNativePlatform()) return
-    const onVisible = (): void => {
-      if (document.visibilityState !== 'visible') return
-      IncomingCall.consumePendingCall()
-        .then(async (r) => {
-          if (!r.pending || !r.callId || !r.callType || !r.conversationId || !r.callerId) return
-          const payload: WsCallIncomingPayload = {
-            callId: r.callId,
-            conversationId: r.conversationId,
-            callType: r.callType as CallType,
-            sdp: {} as RTCSessionDescriptionInit,
-            from: { id: r.callerId, displayName: r.callerName ?? 'Someone' }
-          }
-          useChatStore.getState().selectConversation(r.conversationId)
-          setMobileView('chat')
-          await useCallStore.getState().acceptIncoming(payload)
-        })
-        .catch((err) => console.error('[IncomingCall] visibility answer gagal:', err))
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [user])
+
+
+
 
   // Listener menu native (main process) → buka dialog New User.
   // onNewUser mengembalikan fungsi unsubscribe — wajib di-cleanup agar
