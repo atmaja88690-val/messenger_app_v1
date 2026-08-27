@@ -15,27 +15,3 @@ body {
   overflow: hidden;
   display: flex;
 }
-
-/* === Safe area: notch & home indicator (iOS) ===
-   env() dipakai DENGAN nilai fallback. Di Android dan Electron env() tidak
-   dikenal sehingga fallback 0px yang terpakai -- tidak ada percabangan
-   platform, dan tidak ada perubahan tampilan sedikit pun di kedua platform
-   yang sudah berjalan.
-
-   BELUM AKTIF DI IOS SEKALIPUN. env(safe-area-inset-*) baru mengembalikan
-   nilai bukan-nol setelah index.html memuat:
-     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-   Meta itu sengaja belum ditambahkan karena menyentuh rendering Android dan
-   wajib diuji fisik lebih dulu. Sampai saat itu blok ini dorman di mana-mana.
-
-   Cara memakainya nanti (setelah ada iPhone untuk dilihat): pasang lewat
-   nilai arbitrer Tailwind di komponen, bukan lewat kelas utilitas baru --
-   header  -> pt-[calc(0.625rem+var(--safe-top))]
-   inputbar-> pb-[calc(0.75rem+var(--safe-bottom))]
-   supaya padding asli tidak tertimpa, melainkan DITAMBAH. */
-:root {
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left: env(safe-area-inset-left, 0px);
-  --safe-right: env(safe-area-inset-right, 0px);
-}
