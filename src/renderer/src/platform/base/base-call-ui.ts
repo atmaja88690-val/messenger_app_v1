@@ -1,5 +1,5 @@
 import type {
-  CallEndReason, CallUiEvent, CallUiListener, CallUiPort
+  CallEndReason, CallUiEvent, CallUiListener, CallUiPort, OutgoingCallDescriptor
 } from '../contracts/call-ui.contract'
 
 // WARISAN: menampung yang sama di semua platform (daftar listener) dan
@@ -35,4 +35,10 @@ export abstract class BaseCallUi implements CallUiPort {
   async reportAnswered(_callId: string): Promise<void> {}
   async reportConnected(_callId: string): Promise<void> {}
   async reportEnded(_callId: string, _reason: CallEndReason): Promise<void> {}
+
+  // Default no-op untuk kapabilitas UI panggilan sistem. Hanya iOS yang
+  // meng-override; Android & Desktop mewarisi no-op ini apa adanya.
+  async reportCallFinished(_callId: string, _reason: CallEndReason): Promise<void> {}
+  async startOutgoing(_desc: OutgoingCallDescriptor): Promise<void> {}
+  async setMuted(_callId: string, _muted: boolean): Promise<void> {}
 }
