@@ -78,6 +78,14 @@ export const useCallStore = create<CallStore>((set, get) => ({
   // tanpa menunggu callee menjawab (LiveKit menangani peserta bergiliran).
   onCreated: async (callId, callType) => {
     set({ callId })
+    // iOS: daftarkan panggilan KELUAR ke UI panggilan sistem (FR-19).
+    const s0 = get()
+    void callUi.startOutgoing?.({
+      callId,
+      callType: callType === 'VIDEO' ? 'VIDEO' : 'AUDIO',
+      conversationId: s0.conversationId ?? '',
+      calleeName: s0.peer?.displayName ?? 'Panggilan'
+    })
     try {
       await callService.onCreated(callId, callType)
     } catch (err) {
@@ -145,6 +153,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
   reject: () => {
     const id = get().callId
     void callUi.reportEnded(id ?? '', 'declined')
+    void callUi.reportCallFinished?.(id ?? '', 'declined')
     if (id !== null) wsService.send('call_reject', { callId: id })
     callService.cleanup()
     pendingIncoming = null
@@ -153,6 +162,9 @@ export const useCallStore = create<CallStore>((set, get) => ({
 
   hangup: () => {
     const id = get().callId ?? callService.getCallId()
+    // iOS: tutup UI panggilan sistem. SENGAJA bukan reportEnded -- di Android
+    // reportEnded menghentikan dering native, dan hangup tidak boleh memicunya.
+    void callUi.reportCallFinished?.(id ?? '', 'local')
     if (id !== null) wsService.send('call_end', { callId: id })
     callService.cleanup()
     pendingIncoming = null
@@ -163,9 +175,15 @@ export const useCallStore = create<CallStore>((set, get) => ({
     callService.setCallId(p.callId)
     await callService.onAccepted(p)
     set({ phase: 'active', callId: p.callId })
+    // iOS: panggilan KELUAR tersambung -> reportOutgoingCall(connectedAt) (FR-20).
+    // AndroidCallUi tidak meng-override reportConnected, jadi ini no-op di sana.
+    void callUi.reportConnected(p.callId)
   },
 
   onEnded: (_p, missed) => {
+    // iOS: tutup UI panggilan sistem saat lawan mengakhiri (FR-18, US-007).
+    // No-op di Android & Desktop -- default dari BaseCallUi.
+    void callUi.reportCallFinished?.(get().callId ?? '', missed ? 'timeout' : 'remote')
     callService.cleanup()
     pendingIncoming = null
     set({ ...initial, phase: 'ended', error: missed ? 'No answer' : null })
@@ -178,6 +196,8 @@ export const useCallStore = create<CallStore>((set, get) => ({
     const next = get().micOn === false
     callService.toggleMic(next)
     set({ micOn: next })
+    // iOS: selaraskan status bisu aplikasi -> UI panggilan sistem (FR-17).
+    void callUi.setMuted?.(get().callId ?? '', next === false)
   },
 
   toggleCam: () => {

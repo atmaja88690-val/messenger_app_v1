@@ -126,6 +126,14 @@ function App() {
         setMobileView('chat')
         return
       }
+      if (e.kind === 'muteRequested') {
+        // CallKit mengirim nilai ABSOLUT, sedangkan store hanya punya toggle.
+        // Bandingkan dulu supaya keadaan yang sudah benar tidak ikut dibalik.
+        const st = useCallStore.getState()
+        if (st.micOn === !e.muted) return
+        st.toggleMic()
+        return
+      }
       // 'declined' dan 'ended' BELUM diemisikan adapter Android -- keduanya
       // disiapkan untuk CallKit, yang memberitahu kita lewat delegate.
       if (e.kind === 'declined') useCallStore.getState().reject()
