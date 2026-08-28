@@ -14,6 +14,7 @@ import type { User } from '../types'
 import { TOKEN_KEY, REFRESH_KEY } from '../config/constants'
 import { authApi, usersApi } from '../services/api.service'
 import { wsService } from '../services/ws.service'
+import { unregisterPushAndroid } from '../services/push-android.service'
 import {
   scheduleProactiveRefresh,
   clearProactiveRefresh
@@ -147,6 +148,10 @@ export const useAuthStore = create<AuthState>((set) => {
       // authApi.logout() dulu (TOKEN_KEY masih ada → header valid) → baru clear
       clearProactiveRefresh()
       wsService.disconnect()
+      // Hapus token push di backend SEBELUM sesi dibersihkan -- endpoint
+      // /push/unsubscribe butuh Authorization yang masih valid. Tanpa ini,
+      // backend terus mengirim notifikasi ke perangkat yang sudah logout.
+      await unregisterPushAndroid()
       try {
         await authApi.logout()
       } catch {
