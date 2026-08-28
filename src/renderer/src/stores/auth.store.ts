@@ -151,7 +151,13 @@ export const useAuthStore = create<AuthState>((set) => {
       // Hapus token push di backend SEBELUM sesi dibersihkan -- endpoint
       // /push/unsubscribe butuh Authorization yang masih valid. Tanpa ini,
       // backend terus mengirim notifikasi ke perangkat yang sudah logout.
-      await unregisterPushAndroid()
+      // Dibatasi 3 detik. Logout yang SELALU selesai lebih penting daripada
+      // token yang pasti terhapus -- token sisa tersapu sendiri saat login
+      // berikutnya di perangkat yang sama (upsert berkunci token).
+      await Promise.race([
+        unregisterPushAndroid(),
+        new Promise<void>((resolve) => setTimeout(resolve, 3000))
+      ])
       try {
         await authApi.logout()
       } catch {

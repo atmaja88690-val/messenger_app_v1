@@ -129,14 +129,13 @@ export async function unregisterPushAndroid(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return
 
   // Satu per satu: iPhone punya dua token, dan endpoint menghapus per token.
-  for (const t of [deviceToken, voipToken]) {
-    if (t === null) continue
-    try {
-      await deleteToken(t)
-    } catch (err) {
-      console.error('[PushNative] gagal hapus token di backend:', err)
-    }
-  }
+  // PARALEL, bukan berurutan: axios timeout 15 detik per permintaan, dan
+  // iPhone punya dua token -- berurutan berarti logout bisa tertahan 30 detik.
+  await Promise.allSettled(
+    [deviceToken, voipToken]
+      .filter((t): t is string => t !== null)
+      .map((t) => deleteToken(t))
+  )
   deviceToken = null
   voipToken = null
 
