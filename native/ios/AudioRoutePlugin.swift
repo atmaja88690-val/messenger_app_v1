@@ -37,7 +37,12 @@ public class AudioRoutePlugin: CAPPlugin, CAPBridgedPlugin {
             try session.setCategory(.playAndRecord,
                                     mode: .voiceChat,
                                     options: [.allowBluetooth])
-            try session.setActive(true)
+            // FR-21: saat panggilan dikendalikan CallKit, aktivasi sesi audio
+            // adalah milik CallKit lewat provider(_:didActivate:). Mengaktifkan
+            // sendiri di sini merebutnya dan menghasilkan panggilan tanpa suara.
+            if !AudioSessionCoordinator.shared.callKitOwnsSession {
+                try session.setActive(true)
+            }
             active = true
             call.resolve(["speaker": applyRoute(speaker)])
         } catch {
