@@ -2,6 +2,8 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { useChatStore } from '../../stores/chat.store'
 import { useAuthStore } from '../../stores/auth.store'
 import AttachmentImage from './AttachmentImage'
+import VoiceRecorder from './VoiceRecorder'
+import VoiceBubble from './VoiceBubble'
 import Avatar from './Avatar'
 import chatPattern from '../../assets/chat-pattern.svg'
 import type { Message } from '../../types'
@@ -130,6 +132,10 @@ export default function ChatArea({
   const { conversations, activeId, messages, sendText, sendImage, loadingMsgs, markRead, readCursors, deleteMessage } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
   const [text, setText] = useState('')
+  // Saat merekam atau meninjau, kolom teks dan tombol Send disembunyikan:
+  // satu baris composer, satu maksud. Tanpa ini keduanya berebut ruang
+  // dan di layar HP tombol Kirim rekaman terdorong keluar layar.
+  const [voiceActive, setVoiceActive] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; messageId: string; body: string; mine: boolean } | null>(null)
@@ -356,6 +362,7 @@ export default function ChatArea({
           const showDate = k !== lastDay
           lastDay = k
           const hasImage = m.type === 'IMAGE' && m.attachments && m.attachments.length > 0
+          const hasVoice = m.type === 'AUDIO' && m.attachments && m.attachments.length > 0
           return (
             <div key={m.id}>
               {showDate && (
@@ -388,6 +395,12 @@ export default function ChatArea({
                         {findMessage(m.replyToId)?.body || 'Message'}
                       </div>
                     </div>
+                  )}
+                  {/* Waveform dan durasi digambar dari kolom basis data, jadi bubble sudah
+                      lengkap sebelum satu byte audio pun diunduh. Berkasnya baru diambil
+                      saat tombol putar ditekan. */}
+                  {hasVoice && (
+                    <VoiceBubble attachment={m.attachments![0]} mine={mine} />
                   )}
                   {hasImage && (
                     <div className="mb-1">
@@ -476,29 +489,37 @@ export default function ChatArea({
           </div>
         )}
         <div className="flex gap-2 items-center">
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-        <button
-          onClick={handlePickFile}
-          title="Send image"
-          className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full text-gray-500 transition-colors"
-        >
-          📎
-        </button>
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          onPaste={handlePaste}
-          placeholder="Type a message..."
-          className="flex-1 min-w-0 px-4 py-2.5 bg-gray-100 text-gray-900 rounded-full border border-transparent focus:outline-none focus:border-[#4aa3df] focus:bg-white placeholder-gray-400"
-        />
-        <button
-          onClick={handleSend}
-          disabled={!text.trim() && !pendingImage}
-          className="flex-shrink-0 px-4 sm:px-5 py-2.5 bg-[#4aa3df] hover:bg-[#3a92ce] disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-full transition-colors"
-        >
-          Send
-        </button>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+          {/* Lampiran pindah KE DALAM pil input. Di luar, ia menjadi kontrol
+              keempat yang bersaing perhatian dengan mic, teks, dan kirim --
+              padahal pada satu saat hanya satu tindakan yang masuk akal. */}
+          {!voiceActive && (
+            <div className="flex-1 min-w-0 flex items-center bg-gray-100 rounded-full border border-transparent focus-within:border-[#4aa3df] focus-within:bg-white transition-colors">
+              <input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                onPaste={handlePaste}
+                placeholder="Type a message..."
+                className="flex-1 min-w-0 px-4 py-2.5 bg-transparent text-gray-900 rounded-full focus:outline-none placeholder-gray-400"
+              />
+              <button
+                onClick={handlePickFile}
+                title="Attach image"
+                aria-label="Attach image"
+                className="w-9 h-9 mr-1 flex-shrink-0 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+            </div>
+          )}
+          <VoiceRecorder
+            onActiveChange={setVoiceActive}
+            showSend={text.trim().length > 0 || pendingImage !== null}
+            onSend={handleSend}
+          />
         </div>
       </div>
       <CallOverlay />

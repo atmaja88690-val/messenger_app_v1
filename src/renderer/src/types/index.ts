@@ -45,6 +45,10 @@ export interface Attachment {
   fileName: string
   mimeType: string
   size: number
+  // Diisi HANYA untuk lampiran audio. Keduanya opsional karena seluruh
+  // lampiran lama (gambar, berkas) tidak punya dan tidak akan pernah punya.
+  durationMs?: number | null
+  waveformPeaks?: number[] | null
   createdAt: string
 }
 

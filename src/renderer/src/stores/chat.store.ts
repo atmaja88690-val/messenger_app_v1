@@ -16,6 +16,7 @@ interface ChatState {
   selectConversation: (id: string) => Promise<void>
   sendText: (body: string, replyToId?: string) => Promise<void>
   sendImage: (file: File, caption?: string) => Promise<void>
+  sendVoice: (blob: Blob, durationMs: number, peaks: number[]) => Promise<void>
   deleteMessage: (conversationId: string, messageId: string) => Promise<void>
   markRead: (conversationId: string, seq: string | number) => void
   readCursors: Record<string, string>  // conversationId -> seq terakhir yg dibaca LAWAN bicara
@@ -89,6 +90,60 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  // Sengaja meniru sendImage baris demi baris, bukan menyatukan keduanya:
+  // pesan optimistis, clientMsgId, dan pembuangan saat gagal sudah terbukti
+  // di jalur gambar. Menyatukannya sekarang berarti mempertaruhkan jalur
+  // yang sudah dipakai karyawan demi kerapian yang belum tentu terpakai.
+  sendVoice: async (blob, durationMs, peaks) => {
+    const convId = get().activeId
+    if (!convId) return
+    const me = useAuthStore.getState().user
+    const clientMsgId = nanoid()
+    const optimistic: Message = {
+      id: clientMsgId,
+      conversationId: convId,
+      senderId: me?.id ?? '',
+      sender: me ?? undefined,
+      type: 'AUDIO',
+      body: '',
+      clientMsgId,
+      createdAt: new Date().toISOString(),
+      attachments: [{
+        id: clientMsgId,
+        messageId: clientMsgId,
+        storageKey: '',
+        fileName: 'voice.webm',
+        mimeType: blob.type || 'audio/webm',
+        size: blob.size,
+        durationMs,
+        waveformPeaks: peaks,
+        createdAt: new Date().toISOString(),
+      } as Attachment & { _localUrl?: string }]
+    }
+    set((s) => ({
+      messages: { ...s.messages, [convId]: [...(s.messages[convId] ?? []), optimistic] }
+    }))
+    try {
+      const uploaded = await attachmentsApi.uploadVoice(convId, blob)
+      // peaks TIDAK datang dari server -- server hanya mengembalikan durasi.
+      // Peaks dihitung saat merekam dan hanya ada di sini.
+      await messagesApi.send(convId, '', clientMsgId, {
+        type: 'AUDIO',
+        attachments: [{ ...uploaded, waveformPeaks: peaks }]
+      })
+    } catch (e) {
+      console.error('[chat] sendVoice gagal', e)
+      set((s) => ({
+        messages: {
+          ...s.messages,
+          [convId]: (s.messages[convId] ?? []).filter((m) => m.clientMsgId !== clientMsgId)
+        }
+      }))
+      const ax = e as { response?: { data?: { error?: string } }; message?: string }
+      const detail = ax.response?.data?.error ?? ax.message ?? 'Unknown error'
+      alert(`Failed to send voice message: ${detail}`)
+    }
+  },
   sendImage: async (file, caption) => {
     const convId = get().activeId
     if (!convId) return

@@ -264,6 +264,8 @@ export interface AttachmentInput {
   sizeBytes: number
   width?: number
   height?: number
+  durationMs?: number
+  waveformPeaks?: number[]
 }
 
 export const messagesApi = {
@@ -291,10 +293,19 @@ export const messagesApi = {
 }
 
 // Attachments — R3: stream via backend (BUKAN presigned URL)
+// Instance axios memakai timeout 15 detik yang ditetapkan untuk permintaan
+// JSON kecil. Unduhan biner mewarisinya, dan foto beberapa ratus kilobyte
+// di jaringan kantor yang sibuk bisa melewatinya -- axios lalu MEMBATALKAN
+// sendiri permintaannya (ECONNABORTED), yang di layar terbaca seperti
+// kegagalan server padahal servernya menjawab dalam hitungan milidetik.
+// Diukur 31 Agu: MinIO menjawab 4-45 ms, backend < 1,7 detik.
+const BLOB_TIMEOUT = 60000
+
 export const attachmentsApi = {
   getFile: async (attachmentId: string): Promise<string> => {
     const res = await api.get(`/attachments/file/${attachmentId}`, {
-      responseType: 'blob'
+      responseType: 'blob',
+      timeout: BLOB_TIMEOUT
     })
     return URL.createObjectURL(res.data)
   },
@@ -307,7 +318,8 @@ export const attachmentsApi = {
     try {
       const qs = version != null ? `?v=${version}` : ''
       const res = await api.get(`/users/${userId}/avatar${qs}`, {
-        responseType: 'blob'
+        responseType: 'blob',
+        timeout: BLOB_TIMEOUT
       })
       return URL.createObjectURL(res.data)
     } catch (err) {
@@ -318,6 +330,22 @@ export const attachmentsApi = {
   },
   // Upload file mentah ke conversation tertentu — balikan dipakai sebagai
   // entri attachments[] saat kirim pesan (messagesApi.send).
+  // Pesan suara punya endpoint sendiri karena server men-transcode ke AAC/M4A
+  // dan menaruhnya di bucket khusus. Balikannya membawa durationMs hasil
+  // ffprobe -- durasi versi server, bukan tebakan MediaRecorder di klien.
+  //
+  // timeout DINAIKKAN dari 15 detik bawaan instance: transcode rekaman panjang
+  // bisa melewatinya, dan axios akan membatalkan SETELAH berkasnya terunggah --
+  // pengguna melihat "gagal" padahal servernya sedang bekerja dengan benar.
+  uploadVoice: async (conversationId: string, blob: Blob): Promise<AttachmentInput> => {
+    const form = new FormData()
+    form.append('file', blob, 'voice.webm')
+    const res = await api.post(`/attachments/voice/${conversationId}`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 90000
+    })
+    return res.data
+  },
   upload: async (conversationId: string, file: File): Promise<AttachmentInput> => {
     const form = new FormData()
     form.append('file', file)
