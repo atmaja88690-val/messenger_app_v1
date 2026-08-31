@@ -10,6 +10,9 @@ interface ChatState {
   activeId: string | null
   messages: Record<string, Message[]>   // keyed by conversationId
   loadingConvos: boolean
+  // null = tidak ada kegagalan. Dibedakan dari daftar kosong: gagal memuat
+  // dan benar-benar belum punya percakapan tampak identik tanpa ini.
+  convosError: string | null
   loadingMsgs: boolean
 
   loadConversations: () => Promise<void>
@@ -31,19 +34,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeId: null,
   messages: {},
   loadingConvos: false,
+  convosError: null,
   loadingMsgs: false,
   readCursors: {},
 
   loadConversations: async () => {
-    set({ loadingConvos: true })
+    set({ loadingConvos: true, convosError: null })
     try {
       const { data } = await conversationsApi.list()
       // Respons: { conversations: [...] }
       const list: Conversation[] = data.conversations ?? data ?? []
-      set({ conversations: list, loadingConvos: false })
+      set({ conversations: list, loadingConvos: false, convosError: null })
     } catch (e) {
       console.error('[chat] loadConversations gagal', e)
-      set({ loadingConvos: false })
+      // Alasan dari server, bukan pesan generik -- pengguna perlu tahu apakah
+      // ini soal jaringan, sesi, atau server, dan tombol Retry perlu masuk akal.
+      const ax = e as { response?: { data?: { error?: string } }; message?: string }
+      set({
+        loadingConvos: false,
+        convosError: ax.response?.data?.error ?? ax.message ?? 'Unknown error'
+      })
     }
   },
 

@@ -179,9 +179,7 @@ export default function Sidebar({
 
       <div className="flex-1 overflow-y-auto">
         {loadingConvos && <div className="p-4 text-gray-400 text-sm">Loading...</div>}
-        {!loadingConvos && conversations.length === 0 && (
-          <div className="p-4 text-gray-400 text-sm">No conversations yet</div>
-        )}
+        {!loadingConvos && conversations.length === 0 && <ConvosEmptyState />}
         {!loadingConvos && conversations.length > 0 && filtered.length === 0 && (
           <div className="p-4 text-gray-400 text-sm">No matches</div>
         )}
@@ -201,6 +199,31 @@ export default function Sidebar({
         {groupConvos.map(renderItem)}
       </div>
       {newChatOpen && <NewChatDialog onClose={() => setNewChatOpen(false)} />}
+    </div>
+  )
+}
+
+
+// Keadaan kosong punya DUA sebab yang sangat berbeda: memang belum ada
+// percakapan, atau pemuatannya gagal. Menampilkan keduanya dengan kalimat
+// yang sama membuat kegagalan terbaca sebagai keadaan normal -- pengguna
+// menyimpulkan sesinya rusak, padahal cukup dimuat ulang.
+function ConvosEmptyState(): React.JSX.Element {
+  const err = useChatStore((s) => s.convosError)
+  const reload = useChatStore((s) => s.loadConversations)
+  if (!err) {
+    return <div className="p-4 text-gray-400 text-sm">No conversations yet</div>
+  }
+  return (
+    <div className="p-4 text-sm">
+      <div className="text-red-600 font-medium">Could not load conversations</div>
+      <div className="text-gray-500 text-xs mt-1 break-words">{err}</div>
+      <button
+        onClick={() => { void reload() }}
+        className="mt-2 px-3 py-1.5 rounded-full bg-[#4aa3df] hover:bg-[#3a92ce] text-white text-xs font-medium"
+      >
+        Retry
+      </button>
     </div>
   )
 }

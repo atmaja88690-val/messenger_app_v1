@@ -52,7 +52,19 @@ function hardLogout() {
  * - Gagal NETWORK → THROW (token DIPERTAHANKAN; akan dicoba lagi saat online/wake).
  * - Gagal AUTH (401/403) → hardLogout + return null (refresh token beneran invalid).
  */
+// Satu refresh pada satu waktu. Penjadwal proaktif dan interceptor 401 bisa
+// menembak bersamaan dengan token yang SAMA. Server mencabut token lama begitu
+// yang pertama berhasil (auth.routes.ts: session.update revokedAt + create),
+// jadi yang kedua dapat 401 atas sesi yang sebenarnya masih hidup.
+let inFlightRefresh: Promise<string | null> | null = null
+
 async function performTokenRefresh(): Promise<string | null> {
+  if (inFlightRefresh) return inFlightRefresh
+  inFlightRefresh = doTokenRefresh().finally(() => { inFlightRefresh = null })
+  return inFlightRefresh
+}
+
+async function doTokenRefresh(): Promise<string | null> {
   const storedRefresh = localStorage.getItem(REFRESH_KEY)
   if (!storedRefresh) {
     hardLogout()
@@ -82,6 +94,14 @@ async function performTokenRefresh(): Promise<string | null> {
     return data.accessToken
   } catch (err) {
     if (isAuthRejection(err)) {
+      // Kalau REFRESH_KEY di localStorage sudah BERGANTI, refresh lain menang
+      // duluan dan menyimpan token baru. 401 ini milik pecundang balapan, bukan
+      // tanda sesi mati -- menghapus token di sini akan mematikan auto-login
+      // yang seharusnya bertahan melewati shutdown laptop.
+      const current = localStorage.getItem(REFRESH_KEY)
+      if (current && current !== storedRefresh) {
+        return localStorage.getItem(TOKEN_KEY)
+      }
       // Server bilang refresh token invalid → logout beneran
       hardLogout()
       return null
