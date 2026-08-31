@@ -135,6 +135,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
       setTimeout(() => URL.revokeObjectURL(localUrl), 5000)
     } catch (e) {
       console.error('[chat] sendImage gagal', e)
+      // Unggahan gagal -> BUANG pesan optimistisnya. Kalau dibiarkan, pengirim
+      // melihat gambar lengkap dengan centang dan yakin terkirim, padahal
+      // penerima tidak pernah menerimanya. Kegagalan yang menyamar sebagai
+      // keberhasilan lebih buruk daripada kegagalan yang terang-terangan.
+      URL.revokeObjectURL(localUrl)
+      set((s) => ({
+        messages: {
+          ...s.messages,
+          [convId]: (s.messages[convId] ?? []).filter((m) => m.clientMsgId !== clientMsgId)
+        }
+      }))
+      // Tampilkan alasan dari server (mis. MIME ditolak), bukan pesan generik --
+      // pengguna perlu tahu apakah ini soal format, ukuran, atau jaringan.
+      const ax = e as { response?: { data?: { error?: string } }; message?: string }
+      const detail = ax.response?.data?.error ?? ax.message ?? 'Unknown error'
+      alert(`Failed to send image: ${detail}`)
     }
   },
 
