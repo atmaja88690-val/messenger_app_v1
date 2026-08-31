@@ -2,6 +2,16 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <!-- WAJIB untuk iOS: tanpa ini WKWebView merender halaman selebar 980px
+         lalu memperkecilnya. Android selama ini tertutupi konfigurasi WebView
+         Capacitor sehingga tampak normal tanpa meta ini.
+         viewport-fit=cover SENGAJA BELUM ditambahkan: ia mengaktifkan
+         env(safe-area-inset-*), sementara variabel --safe-* di main.css belum
+         dipakai elemen mana pun. Menambahkannya sekarang membuat konten boleh
+         melebar ke area notch tanpa padding yang menahannya.
+         user-scalable=no juga SENGAJA tidak dipakai: itu mematikan pinch-zoom
+         gambar yang hari ini masih bisa dilakukan pengguna Android. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BSI Messenger</title>
     <meta
       http-equiv="Content-Security-Policy"
