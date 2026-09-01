@@ -24,6 +24,7 @@ interface ChatState {
   deleteMessage: (conversationId: string, messageId: string) => Promise<void>
   // myId dioper dari komponen, bukan diambil dari auth store, supaya store
   // percakapan tidak perlu bergantung pada store autentikasi.
+  editMessage: (conversationId: string, messageId: string, content: string) => Promise<void>
   toggleReaction: (conversationId: string, messageId: string, emoji: string, myId: string) => Promise<void>
   markRead: (conversationId: string, seq: string | number) => void
   readCursors: Record<string, string>  // conversationId -> seq terakhir yg dibaca LAWAN bicara
@@ -110,8 +111,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }))
 
     try {
-      await messagesApi.send(convId, body, clientMsgId, replyToId ? { replyToId } : undefined)
-      // ack via WS akan replace id+seq (lihat _onAck)
+      const res = await messagesApi.send(
+        convId,
+        body,
+        clientMsgId,
+        replyToId ? { replyToId } : undefined
+      )
+      // Jawaban HTTP SUDAH memuat pesan lengkap berikut id dan seq dari server.
+      // Sebelumnya id asli hanya ditunggu dari ack WebSocket, dan bila soket
+      // berkedip di antara kirim dan ack, bubble menyimpan id sementara buatan
+      // klien SELAMANYA -- setiap tindakan yang memakai id itu (sunting, hapus)
+      // lalu dijawab 404 oleh server. Ack tetap dibiarkan: ia menulis nilai
+      // yang sama, jadi idempoten.
+      const saved = res.data?.message as Message | undefined
+      if (saved) {
+        set((s) => ({
+          messages: {
+            ...s.messages,
+            [convId]: (s.messages[convId] ?? []).map((m) =>
+              m.clientMsgId === clientMsgId ? { ...m, ...saved } : m
+            )
+          }
+        }))
+      }
     } catch (e) {
       console.error('[chat] sendText gagal', e)
     }
@@ -256,6 +278,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }))
   },
 
+  // Tanpa optimistik, dan itu disengaja: server yang memutuskan apakah
+  // jendela 15 menit masih terbuka. Menampilkan teks baru lebih dulu lalu
+  // menariknya kembali saat server menolak jauh lebih membingungkan
+  // daripada jeda seperseratus detik.
+  editMessage: async (conversationId, messageId, content) => {
+    const res = await messagesApi.edit(conversationId, messageId, content)
+    const updated = res.data.message as Message
+    set((s) => ({
+      messages: {
+        ...s.messages,
+        [conversationId]: (s.messages[conversationId] ?? []).map((m) =>
+          m.id === messageId ? { ...m, ...updated } : m
+        )
+      },
+      conversations: s.conversations.map((c) =>
+        c.lastMessage && c.lastMessage.id === messageId
+          ? { ...c, lastMessage: { ...c.lastMessage, ...updated } }
+          : c
+      )
+    }))
+  },
+
   // Toggle optimistik. Reaksi terlalu sering dipakai untuk menunggu satu
   // perjalanan jaringan tiap kali, jadi emoji menyala seketika dan keadaan
   // lama disimpan supaya bisa dikembalikan bila permintaannya gagal.
@@ -291,17 +335,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
   _onNewMessage: (m) => {
     set((s) => {
       const existing = s.messages[m.conversationId] ?? []
-      // Hindari duplikat: kalau clientMsgId sudah ada (pesan sendiri), skip
-      if (m.clientMsgId && existing.some((x) => x.clientMsgId === m.clientMsgId)) return s
-      if (existing.some((x) => x.id === m.id)) return s
+      const idx = existing.findIndex(
+        (x) => x.id === m.id || (!!m.clientMsgId && x.clientMsgId === m.clientMsgId)
+      )
+      if (idx !== -1) {
+        // Pesan ini SUDAH ada. Dulu di sini state dikembalikan apa adanya,
+        // yang benar untuk duplikat -- tapi juga membuang satu-satunya jalur
+        // yang dipakai hasil SUNTINGAN, sehingga teks baru tidak pernah
+        // sampai ke layar penerima sampai ia memuat ulang percakapan.
+        // Sekarang isinya diperbarui di tempat, dan percakapannya sengaja
+        // TIDAK dinaikkan ke atas: menyunting pesan lama bukan aktivitas baru.
+        const lama = existing[idx]
+        if (lama.body === m.body && lama.editedAt === m.editedAt) return s
+        const updated = [...existing]
+        updated[idx] = { ...lama, ...m }
+        return {
+          messages: { ...s.messages, [m.conversationId]: updated },
+          conversations: s.conversations.map((c) =>
+            c.lastMessage && c.lastMessage.id === m.id
+              ? { ...c, lastMessage: { ...c.lastMessage, ...m } }
+              : c
+          )
+        }
+      }
 
       // Preview sidebar: set lastMessage + naikkan percakapan ke atas,
       // supaya daftar ikut hidup tanpa reload (perilaku Telegram).
-      const idx = s.conversations.findIndex((c) => c.id === m.conversationId)
+      const i = s.conversations.findIndex((c) => c.id === m.conversationId)
       let convos = s.conversations
-      if (idx !== -1) {
-        const updated = { ...convos[idx], lastMessage: m }
-        convos = [updated, ...convos.slice(0, idx), ...convos.slice(idx + 1)]
+      if (i !== -1) {
+        const naik = { ...convos[i], lastMessage: m }
+        convos = [naik, ...convos.slice(0, i), ...convos.slice(i + 1)]
       }
 
       return {

@@ -313,7 +313,9 @@ export const messagesApi = {
   // Satu endpoint untuk dua arah: backend menghapus barisnya bila
   // kombinasi (pesan, pengguna, emoji) sudah ada. Tidak ada rute unreact.
   react: (convId: string, messageId: string, emoji: string) =>
-    api.post(`/messages/${convId}/${messageId}/react`, { emoji })
+    api.post(`/messages/${convId}/${messageId}/react`, { emoji }),
+  edit: (convId: string, messageId: string, content: string) =>
+    api.patch(`/messages/${convId}/${messageId}`, { content })
 }
 
 // Attachments — R3: stream via backend (BUKAN presigned URL)

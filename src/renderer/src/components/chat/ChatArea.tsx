@@ -32,6 +32,10 @@ function dayKey(iso: string): string {
 }
 
 const MAX_IMAGE_MB = 20
+// Cermin dari EDIT_WINDOW_MS di backend. Diduplikasi dengan sengaja: klien
+// memakainya untuk MENYEMBUNYIKAN butir menu yang pasti ditolak, server
+// tetap satu-satunya yang menegakkannya.
+const EDIT_WINDOW_MS = 15 * 60 * 1000
 
 // Ceklis ala Telegram: abu (terkirim) -> biru (sudah dibaca lawan bicara).
 // Dibandingkan via cursor lastReadSeq (bukan per-pesan), jadi cocok utk DM.
@@ -73,11 +77,13 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 // dan mengubur satu emoji di antara butir teks membuatnya sama mahalnya
 // dengan Delete. Pemosisian tetap sama seperti sebelumnya.
 function TextContextMenu({
-  x, y, body, canDelete, onClose, onDelete, onReply, onReact
+  x, y, body, canDelete, onClose, onDelete, onReply, onReact, canEdit, onEdit
 }: {
   x: number; y: number; body: string; canDelete: boolean; onClose: () => void; onDelete: () => void
   onReply: () => void
   onReact: (emoji: string) => void
+  canEdit: boolean
+  onEdit: () => void
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number; ready: boolean }>({ left: x, top: y, ready: false })
@@ -133,6 +139,11 @@ function TextContextMenu({
           <button onClick={onClose} className={item}>
             🔲 Select Text
           </button>
+          {canEdit && (
+            <button onClick={() => { onEdit(); onClose() }} className={item}>
+              ✏️ Edit Message
+            </button>
+          )}
           {canDelete && (
             <>
               <div className="border-t border-gray-700 my-1" />
@@ -150,6 +161,91 @@ function TextContextMenu({
   )
 }
 
+// Menyunting adalah tindakan modal: selama berlangsung, mengirim pesan baru
+// tidak masuk akal. Banner tipis di atas kolom teks tidak menyampaikan itu --
+// Enter tetap bisa ditekan dan pengguna tidak tahu mana yang terjadi. Kotak
+// di tengah layar menutup pilihan lain sampai suntingan selesai atau batal.
+function EditMessageDialog({
+  message, onClose, onSave
+}: {
+  message: Message
+  onClose: () => void
+  onSave: (text: string) => Promise<void>
+}) {
+  const [draft, setDraft] = useState(message.body ?? '')
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [])
+  const simpan = async (): Promise<void> => {
+    const t = draft.trim()
+    if (!t || saving) return
+    // Suntingan yang tidak mengubah apa pun tidak dikirim: menempelkan
+    // label "Edited" pada teks yang identik hanya menimbulkan kecurigaan.
+    if (t === (message.body ?? '')) { onClose(); return }
+    setSaving(true)
+    try {
+      await onSave(t)
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100"
+          >
+            ✕
+          </button>
+          <div className="text-gray-900 font-medium">Edit message</div>
+        </div>
+        <div className="px-4 py-5 bg-[#eef2f5] flex justify-end">
+          <div className="max-w-[75%] px-3 py-2 rounded-2xl bg-[#e5fbd0] text-gray-900 text-sm break-words">
+            {message.body}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 px-4 py-3">
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void simpan()
+              else if (e.key === 'Escape') onClose()
+            }}
+            className="flex-1 min-w-0 px-4 py-2.5 bg-gray-100 rounded-full text-gray-900 focus:outline-none focus:bg-white border border-transparent focus:border-[#4aa3df]"
+          />
+          <button
+            onClick={() => void simpan()}
+            disabled={saving || draft.trim().length === 0}
+            aria-label="Save"
+            className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full bg-[#4aa3df] text-white hover:bg-[#3a92ce] disabled:opacity-40 transition-colors"
+          >
+            {saving ? (
+              <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ChatArea({
   onOpenPanel,
   panelOpen,
@@ -161,7 +257,7 @@ export default function ChatArea({
   mobileHidden?: boolean
   onBackToList?: () => void
 }) {
-  const { conversations, activeId, messages, sendText, sendImage, loadingMsgs, markRead, readCursors, deleteMessage, toggleReaction } = useChatStore()
+  const { conversations, activeId, messages, sendText, sendImage, loadingMsgs, markRead, readCursors, deleteMessage, toggleReaction, editMessage } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
   const [text, setText] = useState('')
   // Saat merekam atau meninjau, kolom teks dan tombol Send disembunyikan:
@@ -193,6 +289,7 @@ export default function ChatArea({
 
   // Pesan yang sedang dibalas (null = tidak sedang membalas).
   const [replyTo, setReplyTo] = useState<Message | null>(null)
+  const [editing, setEditing] = useState<Message | null>(null)
 
   // Cari pesan asli dari daftar yang sudah dimuat. Bisa null kalau pesan
   // aslinya sudah ter-scroll jauh dan belum dimuat -> tampilkan fallback.
@@ -453,6 +550,7 @@ export default function ChatArea({
                     </div>
                   )}
                   <div className={`text-[10px] mt-0.5 flex items-center justify-end gap-1 ${hasImage ? 'px-1.5 pb-0.5' : ''} ${mine ? 'text-green-700' : 'text-gray-400'}`}>
+                    {m.editedAt && <span className="opacity-70">Edited</span>}
                     {formatTime(m.createdAt)}
                     {mine && <ReadTicks message={m} readUpToSeq={activeId ? readCursors[activeId] : undefined} />}
                   </div>
@@ -497,6 +595,24 @@ export default function ChatArea({
         <div ref={bottomRef} />
       </div>
 
+      {editing && (
+        <EditMessageDialog
+          message={editing}
+          onClose={() => setEditing(null)}
+          onSave={async (t) => {
+            try {
+              await editMessage(editing.conversationId, editing.id, t)
+            } catch (e) {
+              // Penolakan paling mungkin: jendela 15 menit sudah lewat. Alasan
+              // dari server lebih berguna daripada kalimat generik, dan galat
+              // dilempar ulang supaya dialog tetap terbuka dengan teks utuh.
+              const ax = e as { response?: { data?: { error?: string } } }
+              alert(ax.response?.data?.error ?? 'Failed to edit message')
+              throw e
+            }
+          }}
+        />
+      )}
       {ctxMenu && (
         <TextContextMenu
           x={ctxMenu.x}
@@ -505,6 +621,19 @@ export default function ChatArea({
           canDelete={ctxMenu.mine}
           onClose={() => setCtxMenu(null)}
           onDelete={handleDeleteText}
+          canEdit={(() => {
+            const m = findMessage(ctxMenu.messageId)
+            if (!m || m.senderId !== myId || m.deletedAt) return false
+            if (m.type !== 'TEXT') return false
+            // Tanpa seq, pesan ini belum dikonfirmasi server dan id-nya masih
+            // sementara. Menyunting sekarang pasti dijawab 404.
+            if (m.seq === undefined || m.seq === null) return false
+            return Date.now() - new Date(m.createdAt).getTime() < EDIT_WINDOW_MS
+          })()}
+          onEdit={() => {
+            const m = findMessage(ctxMenu.messageId)
+            if (m) setEditing(m)
+          }}
           onReact={(emoji) => {
             if (activeId && myId) void toggleReaction(activeId, ctxMenu.messageId, emoji, myId)
           }}
