@@ -228,7 +228,7 @@ export default function VoiceRecorder({ onActiveChange, showSend, onSend }: Prop
       const err = e as { name?: string }
       alert(
         err?.name === 'NotAllowedError'
-          ? 'Microphone permission denied. Enable microphone access for BSI Messenger.'
+          ? 'Microphone permission denied. Enable microphone access for NNI Messenger.'
           : 'Microphone is not available.'
       )
       stopTracks()

@@ -35,7 +35,7 @@ public class BsimMessagingService extends MessagingService {
             String title = data.get("title");
             String body = data.get("body");
             if (title != null || body != null) {
-                String t = (title != null) ? title : "BSI Messenger";
+                String t = (title != null) ? title : "NNI Messenger";
                 String b = (body != null) ? body : "";
                 showNotification(t, b, data.get("messageId"), data.get("conversationId"));
             }
@@ -115,7 +115,7 @@ public class BsimMessagingService extends MessagingService {
         NotificationCompat.Builder b = new NotificationCompat.Builder(this, CALL_CHANNEL_ID)
             .setSmallIcon(getApplicationInfo().icon)
             .setContentTitle(title)
-            .setContentText("Tap to open BSI Messenger")
+            .setContentText("Tap to open NNI Messenger")
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setAutoCancel(true)
             .setContentIntent(fullScreenIntent)

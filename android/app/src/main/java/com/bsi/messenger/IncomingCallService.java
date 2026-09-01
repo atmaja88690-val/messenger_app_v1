@@ -151,7 +151,7 @@ public class IncomingCallService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel ch = new NotificationChannel(
                 CALL_CHANNEL_ID, CALL_CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH);
-            ch.setDescription("Panggilan masuk BSI Messenger");
+            ch.setDescription("Panggilan masuk NNI Messenger");
             ch.setSound(null, null);
             ch.enableVibration(false);
             try { ch.setBypassDnd(true); } catch (Exception ignored) {}

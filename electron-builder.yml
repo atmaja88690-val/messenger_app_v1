@@ -1,10 +1,10 @@
 appId: com.bsi.messenger
-productName: BSI Messenger
+productName: NNI Messenger
 directories:
   buildResources: build
 files:
   - '!**/.vscode/*'
-  - '!src/*'
+  - '!src'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
@@ -20,9 +20,9 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: bsim
+  executableName: nnim
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: nnim-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always

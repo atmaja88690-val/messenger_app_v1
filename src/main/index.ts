@@ -1,9 +1,43 @@
 import { app, shell, BrowserWindow, ipcMain, Menu, dialog, clipboard, nativeImage, Notification, Tray, type MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
+import { existsSync, mkdirSync, readdirSync, cpSync, writeFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { startLocalServer } from './local-server'
 import icon from '../../resources/icon.png?asset'
+
+// ── Folder data pengguna ────────────────────────────────────────────────────
+// Token login karyawan ada di dalam folder ini. Electron menurunkan namanya
+// dari productName, jadi mengganti nama aplikasi memindahkannya diam-diam dan
+// membuat SEMUA orang mendarat di halaman login.
+//
+// Dikunci ke 'nnim' -- pendek, tanpa spasi, aman untuk path dan skrip. Isi
+// folder lama disalin sekali, ditandai berkas .migrated. Penanda itu yang
+// diperiksa, BUKAN keberadaan foldernya, supaya penyalinan yang putus di tengah
+// dicoba lagi alih-alih meninggalkan folder setengah jadi.
+//
+// Seluruhnya dibungkus try/catch yang jatuh kembali ke folder lama: kegagalan
+// terburuknya adalah keadaan sebelum penggantian nama, bukan logout massal.
+const USER_DATA_NEW = join(app.getPath('appData'), 'nnim')
+const USER_DATA_OLD = join(app.getPath('appData'), 'bsim')
+try {
+  const marker = join(USER_DATA_NEW, '.migrated')
+  if (!existsSync(marker) && existsSync(USER_DATA_OLD)) {
+    // Cache tidak ikut: besar, dibuat ulang sendiri, tidak memuat sesi.
+    const skip = new Set(['Cache', 'GPUCache', 'Code Cache', 'DawnCache',
+      'DawnGraphiteCache', 'DawnWebGPUCache', 'Crashpad', 'logs', 'Partitions'])
+    mkdirSync(USER_DATA_NEW, { recursive: true })
+    for (const entry of readdirSync(USER_DATA_OLD)) {
+      if (skip.has(entry)) continue
+      cpSync(join(USER_DATA_OLD, entry), join(USER_DATA_NEW, entry), { recursive: true })
+    }
+    writeFileSync(marker, new Date().toISOString())
+  }
+  app.setPath('userData', USER_DATA_NEW)
+} catch (err) {
+  console.error('[userData] migrasi gagal — tetap memakai folder lama:', err)
+  try { app.setPath('userData', USER_DATA_OLD) } catch { /* biarkan bawaan Electron */ }
+}
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -18,7 +52,7 @@ function createTray(): void {
   // Ikon sumber besar (untuk installer); tray Windows butuh 16x16, kalau tidak buram.
   const trayIcon = nativeImage.createFromPath(icon).resize({ width: 16, height: 16 })
   tray = new Tray(trayIcon)
-  tray.setToolTip('BSI Messenger')
+  tray.setToolTip('NNI Messenger')
 
   const showWindow = (): void => {
     if (!mainWindow) return
@@ -29,7 +63,7 @@ function createTray(): void {
 
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Buka BSI Messenger', click: showWindow },
+      { label: 'Buka NNI Messenger', click: showWindow },
       { type: 'separator' },
       {
         label: 'Keluar',
@@ -131,7 +165,7 @@ function buildMenu(): void {
       label: 'Help',
       submenu: [
         {
-          label: 'About BSI Messenger',
+          label: 'About NNI Messenger',
           click: () => {
             mainWindow?.webContents.send('menu:about')
           }

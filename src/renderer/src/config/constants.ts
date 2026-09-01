@@ -26,9 +26,9 @@ export const NOTIF_ENABLED_KEY = 'bsi_notif_enabled'
 export const NOTIF_SOUND_KEY = 'bsi_notif_sound'
 
 // === App info (About dialog) — EDIT DI SINI saat rilis versi baru ===
-export const APP_NAME = 'BSI Messenger'
-export const APP_VERSION = '1.3.0'
-export const APP_COPYRIGHT = `© ${new Date().getFullYear()} BSI International. All rights reserved.`
+export const APP_NAME = 'NNI Messenger'
+export const APP_VERSION = '1.3.1'
+export const APP_COPYRIGHT = `© ${new Date().getFullYear()} Nuraline Nutraceuticals Interagency. All rights reserved.`
 
 // URL server penuh untuk ditampilkan (read-only) di Settings.
 // Selalu location.origin -- API selalu same-origin sekarang (relatif), baik dev maupun prod.

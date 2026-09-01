@@ -23,7 +23,7 @@ export default function LoginPage() {
   return (
     <div className="flex items-center justify-center w-full h-full bg-gray-900">
       <div className="w-full max-w-sm p-8 bg-gray-800 rounded-2xl shadow-xl">
-        <h1 className="text-2xl font-bold text-white mb-1">BSI Messenger</h1>
+        <h1 className="text-2xl font-bold text-white mb-1">NNI Messenger</h1>
         <p className="text-gray-400 text-sm mb-8">Sign in to your account</p>
 
         {error && (

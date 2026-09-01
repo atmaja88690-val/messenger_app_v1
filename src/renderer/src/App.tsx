@@ -213,7 +213,7 @@ function App() {
             onAbout={() => setShowAbout(true)}
             onLogout={handleLogout}
           />
-          <span className="font-semibold truncate">BSI Messenger</span>
+          <span className="font-semibold truncate">NNI Messenger</span>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-400 flex-shrink-0">
           {(user?.accountType === 'ADMIN' || user?.accountType === 'MODERATOR') && (

@@ -61,7 +61,7 @@ class CallService {
   private mapMediaError(err: unknown): Error {
     const name = (err as { name?: string })?.name
     if (name === 'NotAllowedError') {
-      return new Error('Camera/microphone permission denied. Open Settings > Privacy > Camera & Microphone and allow BSI Messenger.')
+      return new Error('Camera/microphone permission denied. Open Settings > Privacy > Camera & Microphone and allow NNI Messenger.')
     }
     if (name === 'NotFoundError') {
       return new Error('No camera or microphone found on this device.')

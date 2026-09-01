@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.bsi.messenger',
-  appName: 'BSI Messenger',
+  appName: 'NNI Messenger',
   webDir: 'out/renderer',
 
   // Blok iOS TIDAK berpengaruh ke Android sama sekali -- Capacitor membaca

@@ -37,7 +37,7 @@ export default function AppMenu({ onSettings, onProfile, onAbout, onLogout }: Ap
     { label: 'Settings', onClick: run(onSettings) },
     { label: 'My User Profile', onClick: run(onProfile) },
     { label: 'Reload', onClick: run(() => window.location.reload()), divider: true },
-    { label: 'About BSI Messenger', onClick: run(onAbout), divider: true },
+    { label: 'About NNI Messenger', onClick: run(onAbout), divider: true },
     { label: 'Logout', onClick: run(onLogout), divider: true }
   ]
 
