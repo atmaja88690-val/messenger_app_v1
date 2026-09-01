@@ -40,25 +40,47 @@ function ReadTicks({ message, readUpToSeq }: { message: Message; readUpToSeq?: s
   const seqNum = message.seq !== undefined ? Number(message.seq) : null
   const cursorNum = readUpToSeq !== undefined ? Number(readUpToSeq) : null
   const isRead = seqNum !== null && cursorNum !== null && seqNum <= cursorNum
+  // Dua centang digambar sebagai SATU svg, bukan dua karakter teks. Sebagai
+  // teks, jaraknya ditentukan letter-spacing font dan selalu renggang -- tidak
+  // ada properti CSS yang merapatkannya tanpa merusak baris lain. Sebagai path,
+  // jaraknya kita yang tentukan: 4.6 unit dalam kotak 16 unit, serapat WhatsApp.
   return (
-    <span className={isRead ? 'text-sky-300' : 'text-blue-300/60'} title={isRead ? 'Read' : 'Sent'}>
-      {isRead ? '✓✓' : '✓'}
-    </span>
+    <svg
+      viewBox="0 0 16 11"
+      width="16"
+      height="11"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`flex-shrink-0 ${isRead ? 'text-[#53bdeb]' : 'text-gray-400'}`}
+    >
+      <title>{isRead ? 'Read' : 'Sent'}</title>
+      {isRead && <path d="M1 6.2 L4 9.2 L10.4 1.6" />}
+      <path d={isRead ? 'M5.6 6.2 L8.6 9.2 L15 1.6' : 'M3.4 6.2 L6.4 9.2 L12.8 1.6'} />
+    </svg>
   )
 }
 
 // Context menu untuk bubble TEKS (klik kanan). Saat dibuka, isi pesan
 // otomatis ter-select (mirip "Select Text" Virola, tapi langsung aktif
 // tanpa langkah tambahan). Menu: Copy as Text, Select Text, Delete (jika milik sendiri).
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
+
+// Menu konteks bubble. Bar reaksi cepat diletakkan DI ATAS daftar, bukan di
+// dalamnya: reaksi adalah tindakan sekali sentuh yang paling sering dipakai,
+// dan mengubur satu emoji di antara butir teks membuatnya sama mahalnya
+// dengan Delete. Pemosisian tetap sama seperti sebelumnya.
 function TextContextMenu({
-  x, y, body, canDelete, onClose, onDelete, onReply
+  x, y, body, canDelete, onClose, onDelete, onReply, onReact
 }: {
   x: number; y: number; body: string; canDelete: boolean; onClose: () => void; onDelete: () => void
   onReply: () => void
+  onReact: (emoji: string) => void
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number; ready: boolean }>({ left: x, top: y, ready: false })
-
   useLayoutEffect(() => {
     const el = menuRef.current
     if (!el) return
@@ -66,17 +88,12 @@ function TextContextMenu({
     const margin = 8
     let left = x
     let top = y
-    if (left + rect.width + margin > window.innerWidth) {
-      left = window.innerWidth - rect.width - margin
-    }
-    if (top + rect.height + margin > window.innerHeight) {
-      top = window.innerHeight - rect.height - margin
-    }
+    if (left + rect.width + margin > window.innerWidth) left = window.innerWidth - rect.width - margin
+    if (top + rect.height + margin > window.innerHeight) top = window.innerHeight - rect.height - margin
     left = Math.max(margin, left)
     top = Math.max(margin, top)
     setPos({ left, top, ready: true })
   }, [x, y])
-
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(body)
@@ -85,34 +102,49 @@ function TextContextMenu({
     }
     onClose()
   }
+  const item =
+    'w-full flex items-center gap-2.5 px-3 py-2 text-left text-gray-200 hover:bg-gray-700 transition-colors'
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
       <div
         ref={menuRef}
-        className="fixed z-50 w-52 bg-gray-800 rounded-xl shadow-xl border border-gray-700 py-1 text-sm"
+        className="fixed z-50 w-max"
         style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}
       >
-        <button onClick={() => { onReply(); onClose() }} className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-200 hover:bg-gray-700">
-          ↩️ Reply
-        </button>
-        <button onClick={handleCopy} className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-200 hover:bg-gray-700">
-          📄 Copy as Text
-        </button>
-        <button onClick={onClose} className="w-full flex items-center gap-2 px-3 py-2 text-left text-gray-200 hover:bg-gray-700">
-          🔲 Select Text
-        </button>
-        {canDelete && (
-          <>
-            <div className="border-t border-gray-700 my-1" />
+        <div className="mb-1.5 flex items-center gap-0.5 bg-gray-800 rounded-full shadow-xl border border-gray-700 px-1.5 py-1">
+          {QUICK_REACTIONS.map((e) => (
             <button
-              onClick={() => { onDelete(); onClose() }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-left text-red-400 hover:bg-gray-700"
+              key={e}
+              onClick={() => { onReact(e); onClose() }}
+              className="w-8 h-8 flex items-center justify-center rounded-full text-lg leading-none hover:bg-gray-700 active:scale-90 transition-transform"
             >
-              🗑️ Delete Message
+              {e}
             </button>
-          </>
-        )}
+          ))}
+        </div>
+        <div className="w-52 bg-gray-800 rounded-xl shadow-xl border border-gray-700 py-1 text-sm">
+          <button onClick={() => { onReply(); onClose() }} className={item}>
+            ↩️ Reply
+          </button>
+          <button onClick={handleCopy} className={item}>
+            📄 Copy as Text
+          </button>
+          <button onClick={onClose} className={item}>
+            🔲 Select Text
+          </button>
+          {canDelete && (
+            <>
+              <div className="border-t border-gray-700 my-1" />
+              <button
+                onClick={() => { onDelete(); onClose() }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-red-400 hover:bg-gray-700 transition-colors"
+              >
+                🗑️ Delete Message
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </>
   )
@@ -129,7 +161,7 @@ export default function ChatArea({
   mobileHidden?: boolean
   onBackToList?: () => void
 }) {
-  const { conversations, activeId, messages, sendText, sendImage, loadingMsgs, markRead, readCursors, deleteMessage } = useChatStore()
+  const { conversations, activeId, messages, sendText, sendImage, loadingMsgs, markRead, readCursors, deleteMessage, toggleReaction } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
   const [text, setText] = useState('')
   // Saat merekam atau meninjau, kolom teks dan tombol Send disembunyikan:
@@ -424,6 +456,30 @@ export default function ChatArea({
                     {formatTime(m.createdAt)}
                     {mine && <ReadTicks message={m} readUpToSeq={activeId ? readCursors[activeId] : undefined} />}
                   </div>
+                  {/* Dikelompokkan per emoji, bukan satu chip per baris reaksi: sepuluh
+                      jempol harus terbaca sebagai satu jempol dengan angka 10. */}
+                  {m.reactions && m.reactions.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {Object.entries(
+                        m.reactions.reduce<Record<string, { n: number; mine: boolean }>>((acc, r) => {
+                          const cur = acc[r.emoji] ?? { n: 0, mine: false }
+                          acc[r.emoji] = { n: cur.n + 1, mine: cur.mine || r.userId === myId }
+                          return acc
+                        }, {})
+                      ).map(([emoji, info]) => (
+                        <button
+                          key={emoji}
+                          onClick={() => { if (activeId && myId) void toggleReaction(activeId, m.id, emoji, myId) }}
+                          className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] border transition-colors ${
+                            info.mine ? 'bg-[#4aa3df]/20 border-[#4aa3df]' : 'bg-black/5 border-transparent hover:bg-black/10'
+                          }`}
+                        >
+                          <span className="text-[13px] leading-none">{emoji}</span>
+                          {info.n > 1 && <span className="text-gray-600 tabular-nums">{info.n}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {!mine && (
                   <button
@@ -449,6 +505,9 @@ export default function ChatArea({
           canDelete={ctxMenu.mine}
           onClose={() => setCtxMenu(null)}
           onDelete={handleDeleteText}
+          onReact={(emoji) => {
+            if (activeId && myId) void toggleReaction(activeId, ctxMenu.messageId, emoji, myId)
+          }}
           onReply={() => {
             const m = findMessage(ctxMenu.messageId)
             if (m) setReplyTo(m)

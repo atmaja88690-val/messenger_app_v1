@@ -22,6 +22,9 @@ interface ChatState {
   sendImage: (file: File, caption?: string) => Promise<void>
   sendVoice: (blob: Blob, durationMs: number, peaks: number[]) => Promise<void>
   deleteMessage: (conversationId: string, messageId: string) => Promise<void>
+  // myId dioper dari komponen, bukan diambil dari auth store, supaya store
+  // percakapan tidak perlu bergantung pada store autentikasi.
+  toggleReaction: (conversationId: string, messageId: string, emoji: string, myId: string) => Promise<void>
   markRead: (conversationId: string, seq: string | number) => void
   readCursors: Record<string, string>  // conversationId -> seq terakhir yg dibaca LAWAN bicara
   _onReceipt: (p: { userId: string; seq: string; conversationId: string }) => void
@@ -251,6 +254,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
         [conversationId]: (s.messages[conversationId] ?? []).filter((m) => m.id !== messageId)
       }
     }))
+  },
+
+  // Toggle optimistik. Reaksi terlalu sering dipakai untuk menunggu satu
+  // perjalanan jaringan tiap kali, jadi emoji menyala seketika dan keadaan
+  // lama disimpan supaya bisa dikembalikan bila permintaannya gagal.
+  toggleReaction: async (conversationId, messageId, emoji, myId) => {
+    const apply = (list: Message[]): Message[] =>
+      list.map((m) => {
+        if (m.id !== messageId) return m
+        const rs = m.reactions ?? []
+        const punyaku = rs.find((r) => r.userId === myId && r.emoji === emoji)
+        return {
+          ...m,
+          reactions: punyaku
+            ? rs.filter((r) => r !== punyaku)
+            : [
+                ...rs,
+                { id: 'tmp-' + Date.now(), messageId, userId: myId, emoji, createdAt: new Date().toISOString() }
+              ]
+        }
+      })
+    let sebelum: Message[] = []
+    set((s) => {
+      sebelum = s.messages[conversationId] ?? []
+      return { messages: { ...s.messages, [conversationId]: apply(sebelum) } }
+    })
+    try {
+      await messagesApi.react(conversationId, messageId, emoji)
+    } catch (e) {
+      console.error('[chat] reaksi gagal, dikembalikan', e)
+      set((s) => ({ messages: { ...s.messages, [conversationId]: sebelum } }))
+    }
   },
 
   _onNewMessage: (m) => {

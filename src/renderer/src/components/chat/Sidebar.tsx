@@ -32,6 +32,48 @@ const LABEL: Record<string, string> = {
   OFFLINE: 'Offline'
 }
 
+// seq bersifat per-percakapan dan naik satu tiap pesan, dan lastReadSeq adalah
+// posisi baca kita sendiri di deret yang sama -- jadi selisihnya SUDAH jumlah
+// pesan belum dibaca. Tidak ada yang perlu ditambahkan di backend untuk ini.
+// Pesan terakhir dari diri sendiri tidak pernah dihitung: kursor baca kita
+// belum tentu ikut maju saat kita yang mengirim, dan badge di percakapan
+// sendiri adalah kesalahan yang paling cepat merusak kepercayaan pada badge.
+function unreadOf(c: Conversation, myId?: string): number {
+  const last = c.lastMessage
+  if (!last || last.senderId === myId) return 0
+  const seq = Number(last.seq ?? 0)
+  const read = Number(c.lastReadSeq ?? 0)
+  if (!Number.isFinite(seq) || !Number.isFinite(read)) return 0
+  return Math.max(0, seq - read)
+}
+
+// Pesan suara, foto, dan berkas tidak punya body -- tanpa ini barisnya kosong
+// melompong dan daftar tampak seperti percakapan yang tidak pernah dipakai.
+function previewOf(c: Conversation): string {
+  const m = c.lastMessage
+  if (!m) return 'No messages yet'
+  if (m.body) return m.body
+  if (m.type === 'AUDIO') return '🎤 Voice message'
+  if (m.type === 'IMAGE') return '📷 Photo'
+  if (m.type === 'FILE') return '📎 File'
+  if (m.type === 'CALL') return '📞 Call'
+  return 'Message'
+}
+
+function shortTime(iso?: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const now = new Date()
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+  const kemarin = new Date(now)
+  kemarin.setDate(now.getDate() - 1)
+  if (d.toDateString() === kemarin.toDateString()) return 'Yesterday'
+  return d.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+
 export default function Sidebar({
   onOpenSettings,
   mobileHidden,
@@ -45,6 +87,7 @@ export default function Sidebar({
   const myId = useAuthStore((s) => s.user?.id)
   const me = useAuthStore((s) => s.user)
   const [query, setQuery] = useState('')
+  const [onlyUnread, setOnlyUnread] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [newChatOpen, setNewChatOpen] = useState(false)
   const historyRef = useRef<HTMLDivElement>(null)
@@ -65,9 +108,11 @@ export default function Sidebar({
   }, [historyOpen])
 
   const q = query.trim().toLowerCase()
-  const filtered = q
+  const byName = q
     ? conversations.filter((c) => convName(c, myId).toLowerCase().includes(q))
     : conversations
+  const filtered = onlyUnread ? byName.filter((c) => unreadOf(c, myId) > 0) : byName
+  const unreadTotal = conversations.filter((c) => unreadOf(c, myId) > 0).length
   const directConvos = filtered.filter((c) => c.type === 'DIRECT')
   const groupConvos = filtered.filter((c) => c.type !== 'DIRECT')
   const recentRooms = conversations.slice(0, 6)
@@ -78,6 +123,7 @@ export default function Sidebar({
     const name = convName(c, myId)
     const active = c.id === activeId
     const otherM = c.type === 'DIRECT' ? otherMember(c, myId) : undefined
+    const unread = unreadOf(c, myId)
     return (
       <button
         key={c.id}
@@ -94,10 +140,20 @@ export default function Sidebar({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="text-gray-900 text-sm font-medium truncate">{name}</div>
-          <div className="text-gray-500 text-xs truncate">
-            {c.lastMessage?.body ?? 'No messages yet'}
+          <div className={`text-gray-900 text-sm truncate ${unread > 0 ? 'font-semibold' : 'font-medium'}`}>{name}</div>
+          <div className={`text-xs truncate ${unread > 0 ? 'text-gray-700' : 'text-gray-500'}`}>
+            {previewOf(c)}
           </div>
+        </div>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0 self-start pt-0.5">
+          <span className={`text-[11px] leading-none ${unread > 0 ? 'text-[#4aa3df] font-medium' : 'text-gray-400'}`}>
+            {shortTime(c.lastMessageAt ?? c.lastMessage?.createdAt)}
+          </span>
+          {unread > 0 && (
+            <span className="min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-[#4aa3df] text-white text-[11px] font-semibold tabular-nums">
+              {unread > 99 ? '99+' : unread}
+            </span>
+          )}
         </div>
       </button>
     )
@@ -177,9 +233,38 @@ export default function Sidebar({
         </div>
       </div>
 
+      {/* Dua kancing, bukan deret tab penuh: DIRECT dan GROUP sudah terpisah
+          lewat judul bagian di bawah, jadi tab "Grup" cuma memindahkan hal yang
+          sama ke tempat lain. Yang benar-benar belum ada adalah cara menyaring
+          percakapan yang belum dibaca. */}
+      <div className="px-3 pb-2 flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setOnlyUnread(false)}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            !onlyUnread ? 'bg-[#4aa3df] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          All
+        </button>
+        <button
+          type="button"
+          onClick={() => setOnlyUnread(true)}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            onlyUnread ? 'bg-[#4aa3df] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          Unread{unreadTotal > 0 ? ' ' + unreadTotal : ''}
+        </button>
+      </div>
       <div className="flex-1 overflow-y-auto">
         {loadingConvos && <div className="p-4 text-gray-400 text-sm">Loading...</div>}
         {!loadingConvos && conversations.length === 0 && <ConvosEmptyState />}
+        {!loadingConvos && conversations.length > 0 && filtered.length === 0 && (
+          <div className="p-4 text-gray-400 text-sm">
+            {onlyUnread ? 'Nothing unread' : 'No matches'}
+          </div>
+        )}
         {!loadingConvos && conversations.length > 0 && filtered.length === 0 && (
           <div className="p-4 text-gray-400 text-sm">No matches</div>
         )}

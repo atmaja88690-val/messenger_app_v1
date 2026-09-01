@@ -309,7 +309,11 @@ export const messagesApi = {
       ...(opts?.replyToId ? { replyToId: opts.replyToId } : {})
     }),
   delete: (convId: string, messageId: string) =>
-    api.delete(`/messages/${convId}/${messageId}`)
+    api.delete(`/messages/${convId}/${messageId}`),
+  // Satu endpoint untuk dua arah: backend menghapus barisnya bila
+  // kombinasi (pesan, pengguna, emoji) sudah ada. Tidak ada rute unreact.
+  react: (convId: string, messageId: string, emoji: string) =>
+    api.post(`/messages/${convId}/${messageId}/react`, { emoji })
 }
 
 // Attachments — R3: stream via backend (BUKAN presigned URL)

@@ -52,6 +52,17 @@ export interface Attachment {
   createdAt: string
 }
 
+// Baris mentah dari tabel Reaction. Backend sudah mengirimkannya lewat
+// serializeMessage (yang memakai ...msg), jadi datanya selama ini sudah
+// sampai ke klien -- hanya tidak pernah dideklarasikan maupun dipakai.
+export interface Reaction {
+  id: string
+  messageId: string
+  userId: string
+  emoji: string
+  createdAt: string
+}
+
 export interface Message {
   id: string
   conversationId: string
@@ -66,6 +77,7 @@ export interface Message {
   deletedAt?: string | null
   createdAt: string
   attachments?: Attachment[]
+  reactions?: Reaction[]
 }
 
 // ============================================================
