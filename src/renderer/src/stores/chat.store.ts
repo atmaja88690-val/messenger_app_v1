@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import type { Conversation, Message, Attachment, UserStatus } from '../types'
 import { conversationsApi, messagesApi, attachmentsApi } from '../services/api.service'
+import { waitForServer } from '../services/server-breath.service'
 import { wsService } from '../services/ws.service'
 import { useAuthStore } from './auth.store'
 
@@ -38,22 +39,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadingMsgs: false,
   readCursors: {},
 
+  // Kegagalan SEMENTARA tidak ditunggu dengan jeda tebakan -- klien bertanya
+  // pada napas server kapan ia siap, lalu mencoba sekali lagi. Galat seperti
+  // 403 atau 404 ditampilkan seketika: mengulangnya tidak mengubah apa pun.
   loadConversations: async () => {
+    const TRANSIENT = [408, 429, 500, 502, 503, 504]
+    const MAX = 3
     set({ loadingConvos: true, convosError: null })
-    try {
-      const { data } = await conversationsApi.list()
-      // Respons: { conversations: [...] }
-      const list: Conversation[] = data.conversations ?? data ?? []
-      set({ conversations: list, loadingConvos: false, convosError: null })
-    } catch (e) {
-      console.error('[chat] loadConversations gagal', e)
-      // Alasan dari server, bukan pesan generik -- pengguna perlu tahu apakah
-      // ini soal jaringan, sesi, atau server, dan tombol Retry perlu masuk akal.
-      const ax = e as { response?: { data?: { error?: string } }; message?: string }
-      set({
-        loadingConvos: false,
-        convosError: ax.response?.data?.error ?? ax.message ?? 'Unknown error'
-      })
+    for (let attempt = 1; attempt <= MAX; attempt++) {
+      try {
+        const { data } = await conversationsApi.list()
+        const list: Conversation[] = data.conversations ?? data ?? []
+        set({ conversations: list, loadingConvos: false, convosError: null })
+        return
+      } catch (err) {
+        const ax = err as { response?: { status?: number; data?: { error?: string } }; message?: string }
+        const status = ax.response?.status
+        // undefined = tidak ada respons sama sekali (offline/DNS/timeout).
+        const transient = status === undefined || TRANSIENT.includes(status)
+        if (!transient || attempt === MAX) {
+          console.error('[chat] loadConversations gagal', err)
+          set({
+            loadingConvos: false,
+            convosError: ax.response?.data?.error ?? ax.message ?? 'Unknown error'
+          })
+          return
+        }
+        console.warn(`[chat] muat percakapan gagal (${status ?? 'tanpa respons'}), menunggu napas server`)
+        await waitForServer()
+      }
     }
   },
 

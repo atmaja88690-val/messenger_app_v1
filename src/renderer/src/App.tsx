@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useAuthStore, restoreAuthTokensFromPreferences } from './stores/auth.store'
+import { waitForServer } from './services/server-breath.service'
 import Sidebar from './components/chat/Sidebar'
 import ChatArea from './components/chat/ChatArea'
 import ContactInfoPanel from './components/chat/ContactInfoPanel'
@@ -75,19 +76,33 @@ function App() {
     return () => document.removeEventListener('mousedown', onDown)
   }, [menuOpen])
 
+  // Urutannya disengaja: token dipulihkan dulu, lalu TUNGGU server menyatakan
+  // dirinya terjangkau, baru minta data. Tanpa gerbang ini, permintaan pertama
+  // menabrak proxy lokal yang belum bisa menjangkau hulunya dan dijawab 502 --
+  // lalu layar terkunci sampai ada yang menekan Retry.
   useEffect(() => {
     if (bootstrapped.current) return
     bootstrapped.current = true
-    void (async () => {
-      // Restore token dari Capacitor Preferences (Android WebView bisa wipe
-      // localStorage saat app di-kill sistem) SEBELUM cek localStorage --
-      // no-op aman di Electron/desktop.
+  
+    const boot = async (): Promise<void> => {
       await restoreAuthTokensFromPreferences()
-      const s = useAuthStore.getState()
-      if (!s.isAuthenticated && !s.user && localStorage.getItem('bsi_access_token')) {
-        s.loadMe()
-      }
-    })()
+      if (!localStorage.getItem('bsi_access_token')) return
+      if (useAuthStore.getState().user) return
+      await waitForServer((n, d) =>
+        console.warn(`[napas] server belum menjawab, ulang ${d}ms (ke-${n})`)
+      )
+      await useAuthStore.getState().loadMe()
+    }
+    void boot()
+  
+    // Windows melaporkan jaringan kembali -> jangan tunggu jeda berikutnya.
+    const onOnline = (): void => {
+      void boot()
+      const c = useChatStore.getState()
+      if (c.convosError) void c.loadConversations()
+    }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
   }, [])
 
   // Register FCM push (Android saja; NO-OP di Electron via guard di service).
