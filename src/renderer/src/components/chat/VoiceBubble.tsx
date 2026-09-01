@@ -93,7 +93,7 @@ export default function VoiceBubble({ attachment, mine = false }: Props): React.
   return (
     // max-w-full WAJIB: bubble induk dibatasi 70% lebar layar, dan tanpa ini
     // isinya meluber keluar kotak di HP.
-    <div className="flex items-center gap-2 w-[240px] max-w-full">
+    <div className="flex items-center gap-2 w-full">
       <audio
         ref={audioRef}
         onPlay={() => setPlaying(true)}
