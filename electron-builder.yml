@@ -9,6 +9,14 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # Tanpa pola POSITIF, electron-builder menyertakan seluruh isi proyek dan
+  # hanya membuang yang disebut di sini. Folder platform mobile/iOS tidak
+  # pernah dipakai aplikasi Desktop, tapi ikut terbungkus -- 66 MB keluaran
+  # Gradle saja sudah masuk ke installer yang diunduh karyawan.
+  - '!android'
+  - '!ios'
+  - '!native'
+  - '!capacitor.config.{ts,js,json}'
 asarUnpack:
   - resources/**
 win:
