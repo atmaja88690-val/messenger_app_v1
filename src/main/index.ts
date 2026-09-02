@@ -86,11 +86,15 @@ function createTray(): void {
 }
 
 // Settings persisten (fitur Options, Fase 1): settings.json di userData, milik main process.
-// Hanya downloadDir disimpan di JSON -- openAtLogin sumber kebenarannya OS
-// (app.get/setLoginItemSettings), supaya tidak ada drift dua sumber kebenaran.
+// downloadDir DAN openAtLogin sama-sama disimpan di JSON. Rancangan semula
+// menjadikan OS satu-satunya sumber kebenaran untuk openAtLogin "supaya tidak
+// ada drift" -- justru premis itu yang membuat auto-start mati diam-diam saat
+// rebrand: entri registry menyimpan JALUR .exe, dan jalur bisa menjadi tidak
+// valid tanpa nilainya berubah. OS tetap mekanismenya; JSON menyimpan niatnya.
 interface AppSettings {
   downloadDir?: string
   openAtLoginInitialized?: boolean
+  openAtLogin?: boolean
 }
 
 const settingsPath = (): string => join(app.getPath('userData'), 'settings.json')
@@ -263,9 +267,27 @@ app.whenReady().then(async () => {
   // lewat Tools -> Settings (openAtLogin). Flag disimpan di settings.json.
   try {
     const s0 = await readSettings()
-    if (!s0.openAtLoginInitialized) {
-      app.setLoginItemSettings({ openAtLogin: true })
-      await writeSettings({ openAtLoginInitialized: true })
+    // Dalam mode pengembangan, process.execPath menunjuk ke electron.exe di
+    // node_modules -- mendaftarkannya berarti Electron mentah ikut menyala
+    // saat login. Itu sudah terjadi di laptop ini dan mengotori daftar Run.
+    if (app.isPackaged) {
+      const inginAktif =
+        typeof s0.openAtLogin === 'boolean'
+          ? s0.openAtLogin
+          : s0.openAtLoginInitialized
+            ? app.getLoginItemSettings().openAtLogin
+            : true
+      // Jalur ditulis ULANG setiap start. Kalau berkasnya berpindah atau
+      // berganti nama lagi, entri lama tertimpa sendiri dan auto-start pulih
+      // tanpa perlu ada yang menyadari bahwa ia sempat mati.
+      app.setLoginItemSettings({
+        openAtLogin: inginAktif,
+        path: process.execPath,
+        args: []
+      })
+      if (s0.openAtLogin !== inginAktif || !s0.openAtLoginInitialized) {
+        await writeSettings({ openAtLogin: inginAktif, openAtLoginInitialized: true })
+      }
     }
   } catch (e) {
     console.error('[main] gagal set openAtLogin default:', e)
@@ -327,7 +349,7 @@ app.whenReady().then(async () => {
     const s = await readSettings()
     return {
       downloadDir: s.downloadDir ?? null,
-      openAtLogin: app.getLoginItemSettings().openAtLogin
+      openAtLogin: s.openAtLogin ?? app.getLoginItemSettings().openAtLogin
     }
   })
 
@@ -336,7 +358,12 @@ app.whenReady().then(async () => {
   ipcMain.handle('settings:set', async (_event, patch: { downloadDir?: string; openAtLogin?: boolean }) => {
     try {
       if (typeof patch.openAtLogin === 'boolean') {
-        app.setLoginItemSettings({ openAtLogin: patch.openAtLogin })
+        app.setLoginItemSettings({
+          openAtLogin: patch.openAtLogin,
+          path: process.execPath,
+          args: []
+        })
+        await writeSettings({ openAtLogin: patch.openAtLogin })
       }
       if (typeof patch.downloadDir === 'string' && patch.downloadDir.length > 0) {
         await writeSettings({ downloadDir: patch.downloadDir })
@@ -345,7 +372,7 @@ app.whenReady().then(async () => {
       return {
         ok: true,
         downloadDir: s.downloadDir ?? null,
-        openAtLogin: app.getLoginItemSettings().openAtLogin
+        openAtLogin: s.openAtLogin ?? app.getLoginItemSettings().openAtLogin
       }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
