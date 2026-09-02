@@ -268,6 +268,8 @@ export const directoryApi = {
 
 // Conversations
 export const conversationsApi = {
+  updateSettings: (id: string, body: { favorite?: boolean; mutedUntil?: string | null }) =>
+    api.patch(`/conversations/${id}/settings`, body),
   list: () => api.get('/conversations'),
   // Kontrak backend (conversations.routes.ts): { targetUserId } dan { title, memberIds }.
   // Nama field lama ({ userId }, { name, userIds }) tidak cocok -> selalu 400.

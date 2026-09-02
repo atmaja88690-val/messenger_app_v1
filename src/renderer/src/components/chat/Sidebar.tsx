@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { useChatStore } from '../../stores/chat.store'
 import { useAuthStore } from '../../stores/auth.store'
 import type { Conversation, ConversationMember } from '../../types'
@@ -38,6 +38,82 @@ const LABEL: Record<string, string> = {
 // Pesan terakhir dari diri sendiri tidak pernah dihitung: kursor baca kita
 // belum tentu ikut maju saat kita yang mengirim, dan badge di percakapan
 // sendiri adalah kesalahan yang paling cepat merusak kepercayaan pada badge.
+// mutedUntil adalah WAKTU, bukan sakelar -- jadi bisu bisa kedaluwarsa
+// sendiri tanpa ada yang perlu membatalkannya.
+function isMuted(c: Conversation): boolean {
+  return !!c.mutedUntil && new Date(c.mutedUntil).getTime() > Date.now()
+}
+
+const MUTE_OPTIONS: Array<{ label: string; hours: number }> = [
+  { label: 'Mute 8 hours', hours: 8 },
+  { label: 'Mute 1 week', hours: 24 * 7 },
+  { label: 'Mute always', hours: 24 * 365 * 10 }
+]
+
+function ConvContextMenu({
+  x, y, conv, onClose, onSet
+}: {
+  x: number
+  y: number
+  conv: Conversation
+  onClose: () => void
+  onSet: (patch: { favorite?: boolean; mutedUntil?: string | null }) => void
+}): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState({ left: x, top: y, ready: false })
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const m = 8
+    let left = x
+    let top = y
+    if (left + r.width + m > window.innerWidth) left = window.innerWidth - r.width - m
+    if (top + r.height + m > window.innerHeight) top = window.innerHeight - r.height - m
+    setPos({ left: Math.max(m, left), top: Math.max(m, top), ready: true })
+  }, [x, y])
+  const muted = isMuted(conv)
+  const item =
+    'w-full flex items-center gap-2.5 px-3 py-2 text-left text-gray-200 hover:bg-gray-700 transition-colors'
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div
+        ref={ref}
+        className="fixed z-50 w-56 bg-gray-800 rounded-xl shadow-xl border border-gray-700 py-1 text-sm"
+        style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}
+      >
+        <button
+          onClick={() => { onSet({ favorite: !conv.favorite }); onClose() }}
+          className={item}
+        >
+          {conv.favorite ? '⭐ Remove from favorites' : '⭐ Add to favorites'}
+        </button>
+        <div className="border-t border-gray-700 my-1" />
+        {muted ? (
+          <button onClick={() => { onSet({ mutedUntil: null }); onClose() }} className={item}>
+            🔔 Unmute
+          </button>
+        ) : (
+          MUTE_OPTIONS.map((o) => (
+            <button
+              key={o.label}
+              onClick={() => {
+                const until = new Date(Date.now() + o.hours * 3600 * 1000).toISOString()
+                onSet({ mutedUntil: until })
+                onClose()
+              }}
+              className={item}
+            >
+              🔇 {o.label}
+            </button>
+          ))
+        )}
+      </div>
+    </>
+  )
+}
+
 function unreadOf(c: Conversation, myId?: string): number {
   const last = c.lastMessage
   if (!last || last.senderId === myId) return 0
@@ -83,11 +159,12 @@ export default function Sidebar({
   mobileHidden?: boolean
   onSelectConversation?: () => void
 }) {
-  const { conversations, activeId, loadConversations, selectConversation, loadingConvos } = useChatStore()
+  const { conversations, activeId, loadConversations, selectConversation, loadingConvos, setConvSettings } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
   const me = useAuthStore((s) => s.user)
   const [query, setQuery] = useState('')
-  const [onlyUnread, setOnlyUnread] = useState(false)
+  const [filterMode, setFilterMode] = useState<'all' | 'unread' | 'fav'>('all')
+  const [convMenu, setConvMenu] = useState<{ x: number; y: number; id: string } | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [newChatOpen, setNewChatOpen] = useState(false)
   const historyRef = useRef<HTMLDivElement>(null)
@@ -111,8 +188,14 @@ export default function Sidebar({
   const byName = q
     ? conversations.filter((c) => convName(c, myId).toLowerCase().includes(q))
     : conversations
-  const filtered = onlyUnread ? byName.filter((c) => unreadOf(c, myId) > 0) : byName
+  const filtered =
+    filterMode === 'unread'
+      ? byName.filter((c) => unreadOf(c, myId) > 0)
+      : filterMode === 'fav'
+        ? byName.filter((c) => c.favorite)
+        : byName
   const unreadTotal = conversations.filter((c) => unreadOf(c, myId) > 0).length
+  const favTotal = conversations.filter((c) => c.favorite).length
   const directConvos = filtered.filter((c) => c.type === 'DIRECT')
   const groupConvos = filtered.filter((c) => c.type !== 'DIRECT')
   const recentRooms = conversations.slice(0, 6)
@@ -124,10 +207,15 @@ export default function Sidebar({
     const active = c.id === activeId
     const otherM = c.type === 'DIRECT' ? otherMember(c, myId) : undefined
     const unread = unreadOf(c, myId)
+    const muted = isMuted(c)
     return (
       <button
         key={c.id}
         onClick={() => { selectConversation(c.id); onSelectConversation?.() }}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          setConvMenu({ x: e.clientX, y: e.clientY, id: c.id })
+        }}
         className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-l-[3px] ${
           active ? 'bg-[#f0f7fc] border-[#4aa3df]' : 'border-transparent hover:bg-gray-50'
         }`}
@@ -149,8 +237,19 @@ export default function Sidebar({
           <span className={`text-[11px] leading-none ${unread > 0 ? 'text-[#4aa3df] font-medium' : 'text-gray-400'}`}>
             {shortTime(c.lastMessageAt ?? c.lastMessage?.createdAt)}
           </span>
+          {muted && (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              <path d="M18.63 13A17.9 17.9 0 0 1 18 8" />
+              <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
+              <path d="M18 8a6 6 0 0 0-9.33-5" />
+              <line x1="2" y1="2" x2="22" y2="22" />
+            </svg>
+          )}
           {unread > 0 && (
-            <span className="min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-[#4aa3df] text-white text-[11px] font-semibold tabular-nums">
+            <span className={`min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full text-white text-[11px] font-semibold tabular-nums ${
+              muted ? 'bg-gray-400' : 'bg-[#4aa3df]'
+            }`}>
               {unread > 99 ? '99+' : unread}
             </span>
           )}
@@ -233,36 +332,46 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Dua kancing, bukan deret tab penuh: DIRECT dan GROUP sudah terpisah
-          lewat judul bagian di bawah, jadi tab "Grup" cuma memindahkan hal yang
-          sama ke tempat lain. Yang benar-benar belum ada adalah cara menyaring
-          percakapan yang belum dibaca. */}
+      {/* DIRECT dan GROUP sudah terpisah lewat judul bagian di bawah, jadi tab
+          "Grup" hanya akan memindahkan hal yang sama ke tempat lain. Tiga ini
+          menyaring hal yang tidak bisa dilihat dari judul bagian mana pun. */}
       <div className="px-3 pb-2 flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => setOnlyUnread(false)}
-          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-            !onlyUnread ? 'bg-[#4aa3df] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          All
-        </button>
-        <button
-          type="button"
-          onClick={() => setOnlyUnread(true)}
-          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-            onlyUnread ? 'bg-[#4aa3df] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          Unread{unreadTotal > 0 ? ' ' + unreadTotal : ''}
-        </button>
+        {([
+          ['all', 'All', 0],
+          ['unread', 'Unread', unreadTotal],
+          ['fav', 'Favorites', favTotal]
+        ] as Array<['all' | 'unread' | 'fav', string, number]>).map(([mode, label, n]) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => setFilterMode(mode)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              filterMode === mode ? 'bg-[#4aa3df] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {label}{n > 0 ? ' ' + n : ''}
+          </button>
+        ))}
       </div>
+      {convMenu && (() => {
+        const c = conversations.find((x) => x.id === convMenu.id)
+        if (!c) return null
+        return (
+          <ConvContextMenu
+            x={convMenu.x}
+            y={convMenu.y}
+            conv={c}
+            onClose={() => setConvMenu(null)}
+            onSet={(patch) => { void setConvSettings(c.id, patch) }}
+          />
+        )
+      })()}
       <div className="flex-1 overflow-y-auto">
         {loadingConvos && <div className="p-4 text-gray-400 text-sm">Loading...</div>}
         {!loadingConvos && conversations.length === 0 && <ConvosEmptyState />}
         {!loadingConvos && conversations.length > 0 && filtered.length === 0 && (
           <div className="p-4 text-gray-400 text-sm">
-            {onlyUnread ? 'Nothing unread' : 'No matches'}
+            {filterMode === 'unread' ? 'Nothing unread' : filterMode === 'fav' ? 'No favorites yet' : 'No matches'}
           </div>
         )}
         {!loadingConvos && conversations.length > 0 && filtered.length === 0 && (

@@ -24,6 +24,10 @@ interface ChatState {
   deleteMessage: (conversationId: string, messageId: string) => Promise<void>
   // myId dioper dari komponen, bukan diambil dari auth store, supaya store
   // percakapan tidak perlu bergantung pada store autentikasi.
+  setConvSettings: (
+    conversationId: string,
+    patch: { favorite?: boolean; mutedUntil?: string | null }
+  ) => Promise<void>
   editMessage: (conversationId: string, messageId: string, content: string) => Promise<void>
   toggleReaction: (conversationId: string, messageId: string, emoji: string, myId: string) => Promise<void>
   markRead: (conversationId: string, seq: string | number) => void
@@ -298,6 +302,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
           : c
       )
     }))
+  },
+
+  // Optimistik: bisu dan favorit tidak mengubah data siapa pun selain kita,
+  // jadi menunggu server hanya menambah jeda tanpa menambah keamanan.
+  setConvSettings: async (conversationId, patch) => {
+    let sebelum: Conversation[] = []
+    set((s) => {
+      sebelum = s.conversations
+      return {
+        conversations: s.conversations.map((c) =>
+          c.id === conversationId ? { ...c, ...patch } : c
+        )
+      }
+    })
+    try {
+      await conversationsApi.updateSettings(conversationId, patch)
+    } catch (e) {
+      console.error('[chat] setelan percakapan gagal', e)
+      set({ conversations: sebelum })
+    }
   },
 
   // Toggle optimistik. Reaksi terlalu sering dipakai untuk menunggu satu

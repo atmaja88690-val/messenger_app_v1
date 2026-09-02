@@ -99,6 +99,10 @@ export interface Conversation {
   avatarVersion?: number | null
   lastMessageAt?: string | null
   lastReadSeq?: string         // STRING
+  // Keduanya milik ANGGOTA, bukan percakapan: backend mengirimkan nilai
+  // milik kita sendiri, dan anggota lain tidak pernah melihatnya.
+  mutedUntil?: string | null
+  favorite?: boolean
   lastMessage?: Message | null
   members: ConversationMember[]
 }
