@@ -480,7 +480,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const i = s.conversations.findIndex((c) => c.id === m.conversationId)
       let convos = s.conversations
       if (i !== -1) {
-        const naik = { ...convos[i], lastMessage: m }
+        // lastMessageAt IKUT dimajukan. Sidebar membaca lastMessageAt lebih dulu
+        // (lastMessage.createdAt hanya cadangan), jadi tanpa baris ini pratinjau
+        // dan badge ikut baru sementara jamnya tertinggal di pemuatan terakhir --
+        // pesan yang baru saja masuk terbaca "Yesterday".
+        const naik = { ...convos[i], lastMessage: m, lastMessageAt: m.createdAt }
         convos = [naik, ...convos.slice(0, i), ...convos.slice(i + 1)]
       }
 
