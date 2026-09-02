@@ -234,7 +234,7 @@ export default function Sidebar({
           </div>
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0 self-start pt-0.5">
-          <span className={`text-[11px] leading-none ${unread > 0 ? 'text-[#4aa3df] font-medium' : 'text-gray-400'}`}>
+          <span className={`text-[11px] leading-none ${unread > 0 ? 'text-[#0b93f6] font-semibold' : 'text-gray-400'}`}>
             {shortTime(c.lastMessageAt ?? c.lastMessage?.createdAt)}
           </span>
           {muted && (
@@ -248,7 +248,7 @@ export default function Sidebar({
           )}
           {unread > 0 && (
             <span className={`min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full text-white text-[11px] font-semibold tabular-nums ${
-              muted ? 'bg-gray-400' : 'bg-[#4aa3df]'
+              muted ? 'bg-gray-400' : 'bg-[#0b93f6]'
             }`}>
               {unread > 99 ? '99+' : unread}
             </span>

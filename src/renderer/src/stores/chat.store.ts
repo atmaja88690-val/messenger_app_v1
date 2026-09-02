@@ -24,6 +24,12 @@ interface ChatState {
   deleteMessage: (conversationId: string, messageId: string) => Promise<void>
   // myId dioper dari komponen, bukan diambil dari auth store, supaya store
   // percakapan tidak perlu bergantung pada store autentikasi.
+  // null = sudah diperiksa, memang tidak ada sematan. Dibedakan dari
+  // "belum diperiksa" (kunci belum ada) supaya spanduk tidak berkedip.
+  pinnedMsg: Record<string, Message | null>
+  loadPinned: (conversationId: string) => Promise<void>
+  togglePin: (conversationId: string, messageId: string) => Promise<void>
+  toggleStar: (conversationId: string, messageId: string) => Promise<void>
   setConvSettings: (
     conversationId: string,
     patch: { favorite?: boolean; mutedUntil?: string | null }
@@ -46,6 +52,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   convosError: null,
   loadingMsgs: false,
   readCursors: {},
+  pinnedMsg: {},
 
   // Kegagalan SEMENTARA tidak ditunggu dengan jeda tebakan -- klien bertanya
   // pada napas server kapan ia siap, lalu mencoba sekali lagi. Galat seperti
@@ -264,6 +271,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   markRead: (conversationId, seq) => {
     wsService.markRead(conversationId, seq)
+    // Kursor baca KITA dimajukan di lokal juga. Sebelumnya markRead hanya
+    // mengirim ke server, sehingga lastReadSeq pada objek percakapan tidak
+    // pernah berubah sampai GET /conversations dijalankan ulang -- badge
+    // belum dibaca tetap menyala walau percakapannya sedang dibuka dan
+    // sudah dibaca. readCursors tidak bisa dipakai untuk ini: ia menyimpan
+    // posisi baca LAWAN bicara, bukan posisi baca kita.
+    set((s) => ({
+      conversations: s.conversations.map((c) => {
+        if (c.id !== conversationId) return c
+        const baru = Number(seq)
+        const lama = Number(c.lastReadSeq ?? 0)
+        // Tidak pernah mundur: pesan lama yang kebetulan dirender ulang tidak
+        // boleh menarik kursor ke belakang dan memunculkan badge palsu.
+        if (!Number.isFinite(baru) || baru <= lama) return c
+        return { ...c, lastReadSeq: String(baru) }
+      })
+    }))
   },
 
   _onReceipt: (p) => {
@@ -324,6 +348,53 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  loadPinned: async (conversationId) => {
+    try {
+      const { data } = await messagesApi.pinned(conversationId)
+      set((s) => ({
+        pinnedMsg: { ...s.pinnedMsg, [conversationId]: data.message ?? null }
+      }))
+    } catch (e) {
+      console.error('[chat] gagal memuat sematan', e)
+    }
+  },
+
+  // Kebenarannya diambil ULANG dari server, bukan ditebak: menyematkan satu
+  // pesan otomatis melepas sematan sebelumnya, dan menebak dua perubahan
+  // sekaligus lebih rawan daripada satu permintaan kecil.
+  togglePin: async (conversationId, messageId) => {
+    try {
+      await messagesApi.pin(conversationId, messageId)
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } }
+      alert(ax.response?.data?.error ?? 'Failed to pin message')
+    }
+    await get().loadPinned(conversationId)
+  },
+
+  // Optimistik, dan aman: bintang tidak terlihat siapa pun selain kita, jadi
+  // tidak ada yang bisa salah paham kalau ia sempat menyala sesaat lalu
+  // dikembalikan karena permintaannya gagal.
+  toggleStar: async (conversationId, messageId) => {
+    const ubah = (list: Message[]): Message[] =>
+      list.map((m) => {
+        if (m.id !== messageId) return m
+        const ada = (m.stars?.length ?? 0) > 0
+        return { ...m, stars: ada ? [] : [{ id: 'tmp-' + Date.now() }] }
+      })
+    let sebelum: Message[] = []
+    set((s) => {
+      sebelum = s.messages[conversationId] ?? []
+      return { messages: { ...s.messages, [conversationId]: ubah(sebelum) } }
+    })
+    try {
+      await messagesApi.star(conversationId, messageId)
+    } catch (e) {
+      console.error('[chat] bintang gagal, dikembalikan', e)
+      set((s) => ({ messages: { ...s.messages, [conversationId]: sebelum } }))
+    }
+  },
+
   // Toggle optimistik. Reaksi terlalu sering dipakai untuk menunggu satu
   // perjalanan jaringan tiap kali, jadi emoji menyala seketika dan keadaan
   // lama disimpan supaya bisa dikembalikan bila permintaannya gagal.
@@ -370,11 +441,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Sekarang isinya diperbarui di tempat, dan percakapannya sengaja
         // TIDAK dinaikkan ke atas: menyunting pesan lama bukan aktivitas baru.
         const lama = existing[idx]
-        if (lama.body === m.body && lama.editedAt === m.editedAt) return s
+        // Reaksi tidak menyentuh body maupun editedAt, jadi membandingkan dua
+        // kolom itu saja akan MEMBUANG siaran reaksi. Kumpulan id reaksi yang
+        // diurutkan menangkap penambahan, penghapusan, dan pertukaran emoji
+        // sekaligus -- termasuk id sementara milik reaksi optimistik kita
+        // sendiri, yang memang harus digantikan oleh kebenaran dari server.
+        const sidikReaksi = (r?: { id: string }[]): string =>
+          (r ?? []).map((x) => x.id).sort().join(',')
+        if (
+          lama.body === m.body &&
+          lama.editedAt === m.editedAt &&
+          lama.pinnedAt === m.pinnedAt &&
+          sidikReaksi(lama.reactions) === sidikReaksi(m.reactions)
+        ) {
+          return s
+        }
         const updated = [...existing]
         updated[idx] = { ...lama, ...m }
+        // Sematan terbawa di pesan yang sama, jadi spanduknya diperbarui dari
+        // sini juga -- termasuk saat sematan LAMA dilepas, yang datang sebagai
+        // siaran terpisah beberapa milidetik sebelum yang baru.
+        const pin = { ...s.pinnedMsg }
+        if (m.pinnedAt) pin[m.conversationId] = { ...lama, ...m }
+        else if (pin[m.conversationId]?.id === m.id) pin[m.conversationId] = null
         return {
           messages: { ...s.messages, [m.conversationId]: updated },
+          pinnedMsg: pin,
           conversations: s.conversations.map((c) =>
             c.lastMessage && c.lastMessage.id === m.id
               ? { ...c, lastMessage: { ...c.lastMessage, ...m } }

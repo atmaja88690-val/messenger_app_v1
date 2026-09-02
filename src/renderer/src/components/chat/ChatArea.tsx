@@ -77,13 +77,17 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 // dan mengubur satu emoji di antara butir teks membuatnya sama mahalnya
 // dengan Delete. Pemosisian tetap sama seperti sebelumnya.
 function TextContextMenu({
-  x, y, body, canDelete, onClose, onDelete, onReply, onReact, canEdit, onEdit
+  x, y, body, canDelete, onClose, onDelete, onReply, onReact, canEdit, onEdit, isPinned, onPin, isStarred, onStar
 }: {
   x: number; y: number; body: string; canDelete: boolean; onClose: () => void; onDelete: () => void
   onReply: () => void
   onReact: (emoji: string) => void
   canEdit: boolean
   onEdit: () => void
+  isPinned: boolean
+  onPin: () => void
+  isStarred: boolean
+  onStar: () => void
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number; ready: boolean }>({ left: x, top: y, ready: false })
@@ -138,6 +142,12 @@ function TextContextMenu({
           </button>
           <button onClick={onClose} className={item}>
             🔲 Select Text
+          </button>
+          <button onClick={() => { onStar(); onClose() }} className={item}>
+            {isStarred ? '⭐ Unstar Message' : '⭐ Star Message'}
+          </button>
+          <button onClick={() => { onPin(); onClose() }} className={item}>
+            {isPinned ? '\u{1F4CC} Unpin Message' : '\u{1F4CC} Pin Message'}
           </button>
           {canEdit && (
             <button onClick={() => { onEdit(); onClose() }} className={item}>
@@ -257,7 +267,7 @@ export default function ChatArea({
   mobileHidden?: boolean
   onBackToList?: () => void
 }) {
-  const { conversations, activeId, messages, sendText, sendImage, loadingMsgs, markRead, readCursors, deleteMessage, toggleReaction, editMessage } = useChatStore()
+  const { conversations, activeId, messages, sendText, sendImage, loadingMsgs, markRead, readCursors, deleteMessage, toggleReaction, editMessage, togglePin, loadPinned, pinnedMsg, toggleStar } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
   const [text, setText] = useState('')
   // Saat merekam atau meninjau, kolom teks dan tombol Send disembunyikan:
@@ -268,6 +278,13 @@ export default function ChatArea({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; messageId: string; body: string; mine: boolean } | null>(null)
   const bubbleRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const pinned = activeId ? (pinnedMsg[activeId] ?? null) : null
+  // Pesan yang disematkan bisa berada jauh di atas riwayat dan belum ikut
+  // termuat, jadi ia diambil lewat rutenya sendiri -- bukan dicari di daftar
+  // pesan yang kebetulan ada di layar.
+  useEffect(() => {
+    if (activeId) void loadPinned(activeId)
+  }, [activeId])
 
   const raw = activeId ? messages[activeId] ?? [] : []
   const list = useMemo(
@@ -279,11 +296,25 @@ export default function ChatArea({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [list.length])
 
+  // Menandai terbaca HANYA saat jendela benar-benar terlihat. Kalau aplikasi
+  // diminimalkan sementara percakapan ini terbuka, pesan yang masuk tetap
+  // dihitung belum dibaca -- kalau tidak, pengguna menerima notifikasi,
+  // membuka aplikasi, dan tidak ada satu pun penanda yang menuntunnya ke
+  // pesan itu. Pendengar visibility dan focus membuatnya menyusul begitu
+  // jendela kembali dilihat, tanpa perlu percakapan dibuka ulang.
   useEffect(() => {
     if (!activeId || list.length === 0) return
-    const lastMsg = list[list.length - 1]
-    if (lastMsg.seq !== undefined) {
-      markRead(activeId, lastMsg.seq)
+    const tandaiBila = (): void => {
+      if (document.visibilityState !== 'visible') return
+      const lastMsg = list[list.length - 1]
+      if (lastMsg.seq !== undefined) markRead(activeId, lastMsg.seq)
+    }
+    tandaiBila()
+    document.addEventListener('visibilitychange', tandaiBila)
+    window.addEventListener('focus', tandaiBila)
+    return () => {
+      document.removeEventListener('visibilitychange', tandaiBila)
+      window.removeEventListener('focus', tandaiBila)
     }
   }, [activeId, list.length])
 
@@ -484,6 +515,39 @@ export default function ChatArea({
         className="flex-1 overflow-y-auto p-4 space-y-1.5"
         style={{ backgroundColor: '#d6e0ea', backgroundImage: `url(${chatPattern})`, backgroundRepeat: 'repeat' }}
       >
+        {/* Menempel di atas daftar, bukan di header: ia milik percakapan yang
+            sedang digulir, dan ikut hilang begitu percakapan lain dibuka. */}
+        {pinned && (
+          <div className="sticky top-0 z-10 mb-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/95 backdrop-blur border border-gray-200 shadow-sm">
+            <button
+              onClick={() => {
+                const el = bubbleRefs.current.get(pinned.id)
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              }}
+              className="flex items-center gap-2 min-w-0 flex-1 text-left"
+            >
+              <span className="text-sm flex-shrink-0">📌</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[11px] font-medium text-[#4aa3df]">Pinned message</span>
+                <span className="block text-xs text-gray-700 truncate">
+                  {pinned.body ||
+                    (pinned.type === 'AUDIO'
+                      ? '\u{1F3A4} Voice message'
+                      : pinned.type === 'IMAGE'
+                        ? '\u{1F4F7} Photo'
+                        : 'Message')}
+                </span>
+              </span>
+            </button>
+            <button
+              onClick={() => { if (activeId) void togglePin(activeId, pinned.id) }}
+              title="Unpin"
+              className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-200"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {loadingMsgs && <div className="text-gray-500 text-sm">Loading messages...</div>}
         {list.map((m: Message) => {
           const mine = m.senderId === myId
@@ -550,6 +614,9 @@ export default function ChatArea({
                     </div>
                   )}
                   <div className={`text-[10px] mt-0.5 flex items-center justify-end gap-1 ${hasImage ? 'px-1.5 pb-0.5' : ''} ${mine ? 'text-green-700' : 'text-gray-400'}`}>
+                    {m.stars && m.stars.length > 0 && (
+                      <span title="Starred" className="opacity-80">⭐</span>
+                    )}
                     {m.editedAt && <span className="opacity-70">Edited</span>}
                     {formatTime(m.createdAt)}
                     {mine && <ReadTicks message={m} readUpToSeq={activeId ? readCursors[activeId] : undefined} />}
@@ -621,6 +688,14 @@ export default function ChatArea({
           canDelete={ctxMenu.mine}
           onClose={() => setCtxMenu(null)}
           onDelete={handleDeleteText}
+          isPinned={findMessage(ctxMenu.messageId)?.pinnedAt != null}
+          isStarred={(findMessage(ctxMenu.messageId)?.stars?.length ?? 0) > 0}
+          onStar={() => {
+            if (activeId) void toggleStar(activeId, ctxMenu.messageId)
+          }}
+          onPin={() => {
+            if (activeId) void togglePin(activeId, ctxMenu.messageId)
+          }}
           canEdit={(() => {
             const m = findMessage(ctxMenu.messageId)
             if (!m || m.senderId !== myId || m.deletedAt) return false

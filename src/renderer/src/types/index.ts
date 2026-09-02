@@ -74,6 +74,11 @@ export interface Message {
   body?: string | null
   replyToId?: string | null
   editedAt?: string | null
+  pinnedAt?: string | null
+  pinnedBy?: string | null
+  // Selalu DISARING ke pengguna sendiri di server. Panjang > 0 berarti kita
+  // membintanginya; isi persisnya tidak pernah dipakai.
+  stars?: { id: string }[]
   deletedAt?: string | null
   createdAt: string
   attachments?: Attachment[]

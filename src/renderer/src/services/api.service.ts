@@ -317,7 +317,14 @@ export const messagesApi = {
   react: (convId: string, messageId: string, emoji: string) =>
     api.post(`/messages/${convId}/${messageId}/react`, { emoji }),
   edit: (convId: string, messageId: string, content: string) =>
-    api.patch(`/messages/${convId}/${messageId}`, { content })
+    api.patch(`/messages/${convId}/${messageId}`, { content }),
+  pin: (convId: string, messageId: string) =>
+    api.post(`/messages/${convId}/${messageId}/pin`),
+  // Rute tersendiri karena pesan yang disematkan bisa berada jauh di atas
+  // dan belum ikut termuat -- spanduk sematan tetap harus tampil.
+  pinned: (convId: string) => api.get(`/messages/${convId}/pinned`),
+  star: (convId: string, messageId: string) =>
+    api.post(`/messages/${convId}/${messageId}/star`)
 }
 
 // Attachments — R3: stream via backend (BUKAN presigned URL)
