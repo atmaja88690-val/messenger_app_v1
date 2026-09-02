@@ -524,7 +524,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (m.attachments && m.attachments.length > 0) wasImage = true
         return { ...m, id: p.id, seq: p.seq }
       })
-      return { messages: { ...s.messages, [p.conversationId]: updated } }
+      // Server MENGECUALIKAN pengirim dari siaran NEW_MESSAGE, jadi _onNewMessage
+      // tidak pernah berjalan untuk pesan kita sendiri. Tanpa blok ini, baris
+      // sidebar milik pengirim tidak naik ke atas, pratinjaunya tidak berubah,
+      // dan jamnya tetap seperti pemuatan terakhir -- pesan yang baru saja
+      // DIKIRIM pun terbaca "Yesterday" di layar pengirimnya sendiri.
+      //
+      // Pesannya dicari kembali dari hasil map, bukan ditangkap lewat variabel
+      // di luar callback: penyempitan tipe pada variabel yang ditulis di dalam
+      // closure gampang berbalik menyusahkan tanpa memberi manfaat apa pun.
+      const kirim = updated.find((m) => m.clientMsgId === p.clientMsgId)
+      let convos = s.conversations
+      if (kirim) {
+        const idx = convos.findIndex((c) => c.id === p.conversationId)
+        if (idx !== -1) {
+          const naik = {
+            ...convos[idx],
+            lastMessage: kirim,
+            lastMessageAt: kirim.createdAt
+          }
+          convos = [naik, ...convos.slice(0, idx), ...convos.slice(idx + 1)]
+        }
+      }
+      return {
+        messages: { ...s.messages, [p.conversationId]: updated },
+        conversations: convos
+      }
     })
 
     // Pesan teks biasa: cukup id+seq di atas, tidak perlu re-fetch (murah, cepat).
