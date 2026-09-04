@@ -426,7 +426,7 @@ export default function ChatArea({
       return
     }
     if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
-      alert(`Ukuran gambar maksimal ${MAX_IMAGE_MB}MB.`)
+      alert(`Image must be ${MAX_IMAGE_MB}MB or smaller.`)
       return
     }
     setPendingImage(file)

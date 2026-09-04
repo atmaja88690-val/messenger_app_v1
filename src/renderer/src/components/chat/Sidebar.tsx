@@ -270,13 +270,13 @@ export default function Sidebar({
             <Avatar userId={me.id} name={me.displayName || me.username || 'Saya'} avatarVersion={me.avatarVersion} className="w-9 h-9 rounded-full flex-shrink-0" />
           ) : (
             <div className="w-9 h-9 rounded-full bg-[#4aa3df] flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-              {initials(me?.displayName || me?.username || 'S')}
+              {initials(me?.displayName || me?.username || 'Me')}
             </div>
           )}
           <span className={`absolute -right-0.5 -bottom-0.5 w-3 h-3 rounded-full border-2 border-white ${DOT[meStatus] ?? 'bg-gray-400'}`} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-gray-900 text-sm font-medium truncate">{me?.displayName || me?.username || 'Saya'}</div>
+          <div className="text-gray-900 text-sm font-medium truncate">{me?.displayName || me?.username || 'Me'}</div>
           <div className="text-gray-500 text-xs truncate">{LABEL[meStatus] ?? meStatus}</div>
         </div>
       </div>
@@ -292,7 +292,7 @@ export default function Sidebar({
           />
         </div>
         <div ref={historyRef} className="relative flex items-center gap-1 text-gray-400">
-          <button type="button" onClick={() => setNewChatOpen(true)} aria-label="Chat baru" className="hover:text-gray-700 transition-colors">
+          <button type="button" onClick={() => setNewChatOpen(true)} aria-label="New chat" className="hover:text-gray-700 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
           </button>
           <button type="button" onClick={() => onOpenSettings?.()} aria-label="Settings" className="hover:text-gray-700 transition-colors">

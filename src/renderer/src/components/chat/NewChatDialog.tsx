@@ -98,8 +98,8 @@ export default function NewChatDialog({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => !busy && onClose()}>
       <div className="bg-white rounded-xl w-96 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex">
-          <button className={tabCls(tab === 'dm')} onClick={() => setTab('dm')}>Chat langsung</button>
-          <button className={tabCls(tab === 'group')} onClick={() => setTab('group')}>Grup baru</button>
+          <button className={tabCls(tab === 'dm')} onClick={() => setTab('dm')}>Direct chat</button>
+          <button className={tabCls(tab === 'group')} onClick={() => setTab('group')}>New group</button>
         </div>
 
         <div className="p-4 pb-2">
@@ -107,7 +107,7 @@ export default function NewChatDialog({ onClose }: { onClose: () => void }) {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Nama grup"
+              placeholder="Group name"
               className="w-full mb-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#4aa3df]"
             />
           )}
