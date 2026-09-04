@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/auth.store'
 import AttachmentImage from './AttachmentImage'
 import VoiceRecorder from './VoiceRecorder'
 import VoiceBubble from './VoiceBubble'
+import EmojiPicker from './EmojiPicker'
 import Avatar from './Avatar'
 import chatPattern from '../../assets/chat-pattern.svg'
 import type { Message } from '../../types'
@@ -77,7 +78,7 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 // dan mengubur satu emoji di antara butir teks membuatnya sama mahalnya
 // dengan Delete. Pemosisian tetap sama seperti sebelumnya.
 function TextContextMenu({
-  x, y, body, canDelete, onClose, onDelete, onReply, onReact, canEdit, onEdit, isPinned, onPin, isStarred, onStar
+  x, y, body, canDelete, onClose, onDelete, onReply, onReact, canEdit, onEdit, isPinned, onPin, isStarred, onStar, bounds
 }: {
   x: number; y: number; body: string; canDelete: boolean; onClose: () => void; onDelete: () => void
   onReply: () => void
@@ -88,7 +89,10 @@ function TextContextMenu({
   onPin: () => void
   isStarred: boolean
   onStar: () => void
+  // Kotak tempat menu boleh muncul. null = seluruh jendela.
+  bounds: DOMRect | null
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number; ready: boolean }>({ left: x, top: y, ready: false })
   useLayoutEffect(() => {
@@ -96,14 +100,22 @@ function TextContextMenu({
     if (!el) return
     const rect = el.getBoundingClientRect()
     const margin = 8
+    // Dibatasi ke KOTAK AREA CHAT, bukan ke jendela. Tanpa ini menu boleh
+    // menimpa panel profil di kanan dan terpotong di tepi bawah jendela.
+    const b = bounds ?? {
+      left: 0,
+      top: 0,
+      right: window.innerWidth,
+      bottom: window.innerHeight
+    }
     let left = x
     let top = y
-    if (left + rect.width + margin > window.innerWidth) left = window.innerWidth - rect.width - margin
-    if (top + rect.height + margin > window.innerHeight) top = window.innerHeight - rect.height - margin
-    left = Math.max(margin, left)
-    top = Math.max(margin, top)
+    if (left + rect.width + margin > b.right) left = b.right - rect.width - margin
+    if (top + rect.height + margin > b.bottom) top = b.bottom - rect.height - margin
+    left = Math.max(b.left + margin, left)
+    top = Math.max(b.top + margin, top)
     setPos({ left, top, ready: true })
-  }, [x, y])
+  }, [x, y, pickerOpen, bounds])
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(body)
@@ -132,7 +144,21 @@ function TextContextMenu({
               {e}
             </button>
           ))}
+            {/* Enam emoji cepat menutupi sebagian besar reaksi, tapi tidak semua.
+                Tombol ini membuka pemilih penuh tanpa menutup menunya. */}
+            <button
+              onClick={() => setPickerOpen((v) => !v)}
+              title="More emoji"
+              className="w-8 h-8 flex items-center justify-center rounded-full text-xl leading-none text-gray-300 hover:bg-gray-700 active:scale-90 transition-transform"
+            >
+              +
+            </button>
         </div>
+          {pickerOpen && (
+            <div className="mb-1.5 bg-gray-800 rounded-xl shadow-xl border border-gray-700 overflow-hidden">
+              <EmojiPicker gelap onPick={(e) => { onReact(e); onClose() }} />
+            </div>
+          )}
         <div className="w-52 bg-gray-800 rounded-xl shadow-xl border border-gray-700 py-1 text-sm">
           <button onClick={() => { onReply(); onClose() }} className={item}>
             ↩️ Reply
@@ -278,6 +304,7 @@ export default function ChatArea({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; messageId: string; body: string; mine: boolean } | null>(null)
   const bubbleRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const chatAreaRef = useRef<HTMLDivElement>(null)
   const pinned = activeId ? (pinnedMsg[activeId] ?? null) : null
   // Pesan yang disematkan bisa berada jauh di atas riwayat dan belum ikut
   // termuat, jadi ia diambil lewat rutenya sendiri -- bukan dicari di daftar
@@ -295,6 +322,17 @@ export default function ChatArea({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [list.length])
+
+  // Badge harus hilang pada saat percakapan DIKLIK, bukan setelah daftar
+  // pesannya selesai dimuat. Kursor dimajukan dari lastMessage yang sudah
+  // ada di daftar percakapan, jadi tidak perlu menunggu satu permintaan pun.
+  useEffect(() => {
+    if (!activeId) return
+    if (document.visibilityState !== 'visible') return
+    const c = conversations.find((x) => x.id === activeId)
+    const seq = c?.lastMessage?.seq
+    if (seq !== undefined) markRead(activeId, seq)
+  }, [activeId])
 
   // Menandai terbaca HANYA saat jendela benar-benar terlihat. Kalau aplikasi
   // diminimalkan sementara percakapan ini terbuka, pesan yang masuk tetap
@@ -321,6 +359,8 @@ export default function ChatArea({
   // Pesan yang sedang dibalas (null = tidak sedang membalas).
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [editing, setEditing] = useState<Message | null>(null)
+  const [emojiOpen, setEmojiOpen] = useState(false)
+  const textInputRef = useRef<HTMLInputElement>(null)
 
   // Cari pesan asli dari daftar yang sudah dimuat. Bisa null kalau pesan
   // aslinya sudah ter-scroll jauh dan belum dimuat -> tampilkan fallback.
@@ -356,6 +396,27 @@ export default function ChatArea({
   }
 
   const handlePickFile = () => fileInputRef.current?.click()
+
+  // Emoji disisipkan di POSISI KURSOR, bukan ditempel di akhir. Menempel di
+  // akhir terasa salah begitu pengguna mundur untuk menyunting bagian tengah
+  // kalimatnya -- dan itu justru saat emoji paling sering dipakai.
+  const insertEmoji = (emoji: string): void => {
+    const el = textInputRef.current
+    if (!el) {
+      setText((t) => t + emoji)
+      return
+    }
+    const a = el.selectionStart ?? text.length
+    const b = el.selectionEnd ?? a
+    setText(text.slice(0, a) + emoji + text.slice(b))
+    // Kursor dikembalikan SETELAH React menulis ulang nilainya; tanpa ini
+    // kursor melompat ke ujung dan emoji berikutnya mendarat di tempat salah.
+    requestAnimationFrame(() => {
+      el.focus()
+      const pos = a + emoji.length
+      el.setSelectionRange(pos, pos)
+    })
+  }
 
   // Validasi dipakai bersama oleh tombol lampiran dan paste dari clipboard,
   // supaya aturannya tidak pernah menyimpang di antara dua jalur.
@@ -512,6 +573,7 @@ export default function ChatArea({
         </div>
       </div>
       <div
+        ref={chatAreaRef}
         className="flex-1 overflow-y-auto p-4 space-y-1.5"
         style={{ backgroundColor: '#d6e0ea', backgroundImage: `url(${chatPattern})`, backgroundRepeat: 'repeat' }}
       >
@@ -688,6 +750,7 @@ export default function ChatArea({
           canDelete={ctxMenu.mine}
           onClose={() => setCtxMenu(null)}
           onDelete={handleDeleteText}
+          bounds={chatAreaRef.current?.getBoundingClientRect() ?? null}
           isPinned={findMessage(ctxMenu.messageId)?.pinnedAt != null}
           isStarred={(findMessage(ctxMenu.messageId)?.stars?.length ?? 0) > 0}
           onStar={() => {
@@ -719,7 +782,17 @@ export default function ChatArea({
         />
       )}
 
-      <div className="p-3 border-t border-gray-200 bg-white flex-shrink-0">
+      <div className="relative p-3 border-t border-gray-200 bg-white flex-shrink-0">
+        {emojiOpen && (
+          <>
+            {/* Lapisan tembus pandang: klik di mana pun menutup pemilih,
+                termasuk saat pengguna langsung mengetik di kolom pesan. */}
+            <div className="fixed inset-0 z-20" onClick={() => setEmojiOpen(false)} />
+            <div className="absolute bottom-full left-3 mb-2 z-30 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
+              <EmojiPicker onPick={insertEmoji} />
+            </div>
+          </>
+        )}
         {pendingUrl && (
           <div className="mb-2 inline-flex relative">
             <img src={pendingUrl} alt="preview" className="h-20 w-20 object-cover rounded-lg border border-gray-300" />
@@ -758,7 +831,23 @@ export default function ChatArea({
               padahal pada satu saat hanya satu tindakan yang masuk akal. */}
           {!voiceActive && (
             <div className="flex-1 min-w-0 flex items-center bg-gray-100 rounded-full border border-transparent focus-within:border-[#4aa3df] focus-within:bg-white transition-colors">
+              <button
+                onClick={() => setEmojiOpen((o) => !o)}
+                title="Emoji"
+                aria-label="Emoji"
+                className={`w-9 h-9 ml-1 flex-shrink-0 flex items-center justify-center rounded-full transition-colors ${
+                  emojiOpen ? 'bg-gray-200 text-gray-700' : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                }`}
+              >
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                  <line x1="9" y1="9" x2="9.01" y2="9" />
+                  <line x1="15" y1="9" x2="15.01" y2="9" />
+                </svg>
+              </button>
               <input
+                ref={textInputRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
