@@ -27,7 +27,7 @@ export const NOTIF_SOUND_KEY = 'bsi_notif_sound'
 
 // === App info (About dialog) — EDIT DI SINI saat rilis versi baru ===
 export const APP_NAME = 'NNI Messenger'
-export const APP_VERSION = '1.3.2'
+export const APP_VERSION = '1.3.3'
 export const APP_COPYRIGHT = `© ${new Date().getFullYear()} Nuraline Nutraceuticals Interagency. All rights reserved.`
 
 // URL server penuh untuk ditampilkan (read-only) di Settings.
