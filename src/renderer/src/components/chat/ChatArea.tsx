@@ -78,9 +78,10 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 // dan mengubur satu emoji di antara butir teks membuatnya sama mahalnya
 // dengan Delete. Pemosisian tetap sama seperti sebelumnya.
 function TextContextMenu({
-  x, y, body, canDelete, onClose, onDelete, onReply, onReact, canEdit, onEdit, isPinned, onPin, isStarred, onStar, bounds
+  x, y, body, hasBody, isVoice, canDelete, onClose, onDelete, onReply, onReact, canEdit, onEdit, isPinned, onPin, isStarred, onStar, onCopyMessage, bounds
 }: {
-  x: number; y: number; body: string; canDelete: boolean; onClose: () => void; onDelete: () => void
+  x: number; y: number; body: string; hasBody: boolean; isVoice: boolean; canDelete: boolean; onClose: () => void; onDelete: () => void
+  onCopyMessage: () => void
   onReply: () => void
   onReact: (emoji: string) => void
   canEdit: boolean
@@ -134,6 +135,7 @@ function TextContextMenu({
         className="fixed z-50 w-max"
         style={{ left: pos.left, top: pos.top, visibility: pos.ready ? 'visible' : 'hidden' }}
       >
+        {!isVoice && (
         <div className="mb-1.5 flex items-center gap-0.5 bg-gray-800 rounded-full shadow-xl border border-gray-700 px-1.5 py-1">
           {QUICK_REACTIONS.map((e) => (
             <button
@@ -154,28 +156,45 @@ function TextContextMenu({
               +
             </button>
         </div>
-          {pickerOpen && (
+        )}
+          {!isVoice && pickerOpen && (
             <div className="mb-1.5 bg-gray-800 rounded-xl shadow-xl border border-gray-700 overflow-hidden">
               <EmojiPicker gelap onPick={(e) => { onReact(e); onClose() }} />
             </div>
           )}
         <div className="w-52 bg-gray-800 rounded-xl shadow-xl border border-gray-700 py-1 text-sm">
-          <button onClick={() => { onReply(); onClose() }} className={item}>
-            ↩️ Reply
+          {!isVoice && (
+            <button onClick={() => { onReply(); onClose() }} className={item}>
+              ↩️ Reply
+            </button>
+          )}
+          {/* Menyalin PESAN, bukan teksnya: audio, gambar, dan caption ikut.
+              Clipboard sistem tidak sanggup membawa itu, jadi papan klipnya
+              milik aplikasi dan salinannya dibuat oleh server. */}
+          <button onClick={() => { onCopyMessage(); onClose() }} className={item}>
+            {isVoice ? '📋 Copy Voicenote' : '📋 Copy Message'}
           </button>
-          <button onClick={handleCopy} className={item}>
-            📄 Copy as Text
-          </button>
-          <button onClick={onClose} className={item}>
-            🔲 Select Text
-          </button>
-          <button onClick={() => { onStar(); onClose() }} className={item}>
-            {isStarred ? '⭐ Unstar Message' : '⭐ Star Message'}
-          </button>
-          <button onClick={() => { onPin(); onClose() }} className={item}>
-            {isPinned ? '\u{1F4CC} Unpin Message' : '\u{1F4CC} Pin Message'}
-          </button>
-          {canEdit && (
+          {hasBody && (
+            <>
+              <button onClick={handleCopy} className={item}>
+                📄 Copy as Text
+              </button>
+              <button onClick={onClose} className={item}>
+                🔲 Select Text
+              </button>
+            </>
+          )}
+          {!isVoice && (
+            <>
+              <button onClick={() => { onStar(); onClose() }} className={item}>
+                {isStarred ? '⭐ Unstar Message' : '⭐ Star Message'}
+              </button>
+              <button onClick={() => { onPin(); onClose() }} className={item}>
+                {isPinned ? '\u{1F4CC} Unpin Message' : '\u{1F4CC} Pin Message'}
+              </button>
+            </>
+          )}
+          {canEdit && hasBody && (
             <button onClick={() => { onEdit(); onClose() }} className={item}>
               ✏️ Edit Message
             </button>
@@ -187,7 +206,7 @@ function TextContextMenu({
                 onClick={() => { onDelete(); onClose() }}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-red-400 hover:bg-gray-700 transition-colors"
               >
-                🗑️ Delete Message
+                {isVoice ? '🗑️ Delete Voicenote' : '🗑️ Delete Message'}
               </button>
             </>
           )}
@@ -302,7 +321,10 @@ export default function ChatArea({
   const [voiceActive, setVoiceActive] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; messageId: string; body: string; mine: boolean } | null>(null)
+  const clipboardMsg = useChatStore((s) => s.clipboardMsg)
+  const copyMessage = useChatStore((s) => s.copyMessage)
+  const pasteMessage = useChatStore((s) => s.pasteMessage)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; messageId: string; body: string; mine: boolean; hasBody: boolean; isVoice: boolean } | null>(null)
   const bubbleRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const chatAreaRef = useRef<HTMLDivElement>(null)
   const pinned = activeId ? (pinnedMsg[activeId] ?? null) : null
@@ -450,6 +472,14 @@ export default function ChatArea({
         return
       }
     }
+    // Ctrl+V menempelkan pesan yang disalin HANYA bila clipboard sistem tidak
+    // membawa apa pun sendiri. Kalau pengguna baru menyalin teks di tempat
+    // lain, teks itulah yang ia maksud -- bukan nota suara dari kemarin.
+    const teksOS = e.clipboardData?.getData('text/plain') ?? ''
+    if (!teksOS && clipboardMsg && activeId) {
+      e.preventDefault()
+      await pasteMessage(activeId)
+    }
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -461,8 +491,21 @@ export default function ChatArea({
 
   const openTextMenu = (e: React.MouseEvent, m: Message) => {
     e.preventDefault()
-    if (!m.body) return // bubble gambar tanpa caption -> tidak ada teks utk menu ini
-    setCtxMenu({ x: e.clientX, y: e.clientY, messageId: m.id, body: m.body, mine: m.senderId === myId })
+    // Dulu bubble tanpa teks ditolak di sini -- ITULAH sebabnya nota suara
+    // sama sekali tidak punya menu klik-kanan. Sekarang menunya terbuka untuk
+    // semua bubble; butir yang khusus teks disembunyikan lewat hasBody.
+    setCtxMenu({
+      x: e.clientX,
+      y: e.clientY,
+      messageId: m.id,
+      body: m.body ?? '',
+      mine: m.senderId === myId,
+      hasBody: !!m.body,
+      // Nota suara bukan teks dan bukan gambar: tidak ada yang bisa
+      // dibalas kutipannya, disematkan, atau dibintangi secara berguna.
+      // Menunya sengaja disempitkan jadi salin dan hapus saja.
+      isVoice: m.type === 'AUDIO'
+    })
     // Auto-select isi bubble (mirip "Select Text" Virola tapi langsung aktif)
     const el = bubbleRefs.current.get(m.id)
     if (el) {
@@ -679,6 +722,9 @@ export default function ChatArea({
                     {m.stars && m.stars.length > 0 && (
                       <span title="Starred" className="opacity-80">⭐</span>
                     )}
+                    {m.forwardedFromId && (
+                      <span className="opacity-70 italic">Forwarded</span>
+                    )}
                     {m.editedAt && <span className="opacity-70">Edited</span>}
                     {formatTime(m.createdAt)}
                     {mine && <ReadTicks message={m} readUpToSeq={activeId ? readCursors[activeId] : undefined} />}
@@ -742,11 +788,44 @@ export default function ChatArea({
           }}
         />
       )}
+      {/* Chip ini muncul di percakapan MANA PUN selama papan klip terisi --
+          itulah gunanya menyalin: menempel di tempat lain. */}
+      {clipboardMsg && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-gray-800 text-gray-100 rounded-full shadow-xl border border-gray-700 pl-3 pr-1.5 py-1.5 text-sm">
+          <span className="opacity-70">📋</span>
+          <span className="max-w-[220px] truncate">
+            {clipboardMsg.type === 'AUDIO'
+              ? 'Voice note ready to paste'
+              : clipboardMsg.type === 'IMAGE'
+                ? 'Image ready to paste'
+                : clipboardMsg.body || 'Message ready to paste'}
+          </span>
+          <button
+            onClick={() => { if (activeId) void pasteMessage(activeId) }}
+            className="px-3 py-1 rounded-full bg-[#0b93f6] text-white hover:brightness-110 active:scale-95 transition"
+          >
+            Paste
+          </button>
+          <button
+            onClick={() => copyMessage(null)}
+            title="Clear"
+            className="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {ctxMenu && (
         <TextContextMenu
           x={ctxMenu.x}
           y={ctxMenu.y}
           body={ctxMenu.body}
+          hasBody={ctxMenu.hasBody}
+          isVoice={ctxMenu.isVoice}
+          onCopyMessage={() => {
+            const m = findMessage(ctxMenu.messageId)
+            if (m) copyMessage(m)
+          }}
           canDelete={ctxMenu.mine}
           onClose={() => setCtxMenu(null)}
           onDelete={handleDeleteText}

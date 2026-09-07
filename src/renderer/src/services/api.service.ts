@@ -324,7 +324,12 @@ export const messagesApi = {
   // dan belum ikut termuat -- spanduk sematan tetap harus tampil.
   pinned: (convId: string) => api.get(`/messages/${convId}/pinned`),
   star: (convId: string, messageId: string) =>
-    api.post(`/messages/${convId}/${messageId}/star`)
+    api.post(`/messages/${convId}/${messageId}/star`),
+  // Klien hanya menyebut pesan mana yang disalin. Server yang membaca
+  // lampiran asal dan menentukan kunci penyimpanan baru -- storageKey
+  // tidak pernah datang dari sini.
+  copy: (convId: string, sourceMessageId: string, clientMsgId: string) =>
+    api.post(`/messages/${convId}/copy`, { sourceMessageId, clientMsgId })
 }
 
 // Attachments — R3: stream via backend (BUKAN presigned URL)

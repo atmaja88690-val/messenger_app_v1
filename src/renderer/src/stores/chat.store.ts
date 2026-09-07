@@ -36,6 +36,12 @@ interface ChatState {
   ) => Promise<void>
   editMessage: (conversationId: string, messageId: string, content: string) => Promise<void>
   toggleReaction: (conversationId: string, messageId: string, emoji: string, myId: string) => Promise<void>
+  // Papan klip MILIK APLIKASI. Clipboard sistem operasi tidak sanggup
+  // membawa nota suara secara utuh: yang ikut hanya berkas mentah, tanpa
+  // durasi, gelombang, maupun jejak asalnya. null = papan klip kosong.
+  clipboardMsg: Message | null
+  copyMessage: (m: Message | null) => void
+  pasteMessage: (conversationId: string) => Promise<void>
   markRead: (conversationId: string, seq: string | number) => void
   readCursors: Record<string, string>  // conversationId -> seq terakhir yg dibaca LAWAN bicara
   _onReceipt: (p: { userId: string; seq: string; conversationId: string }) => void
@@ -53,6 +59,65 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadingMsgs: false,
   readCursors: {},
   pinnedMsg: {},
+  clipboardMsg: null,
+
+  copyMessage: (m) => set({ clipboardMsg: m }),
+
+  // Salinan dibuat SERVER, bukan dirakit klien. Pesan optimistis dipakai
+  // supaya tempelan terasa seketika, lalu DIGANTI oleh respons HTTP: id
+  // sementara yang tidak pernah diganti adalah cacat yang dulu membuat
+  // sunting dan hapus gagal dengan 404.
+  pasteMessage: async (conversationId) => {
+    const asal = get().clipboardMsg
+    if (!asal) return
+    const clientMsgId = nanoid()
+    const myId = useAuthStore.getState().user?.id ?? ''
+    const optimistik: Message = {
+      ...asal,
+      id: clientMsgId,
+      clientMsgId,
+      conversationId,
+      senderId: myId,
+      seq: undefined,
+      editedAt: null,
+      pinnedAt: null,
+      pinnedBy: null,
+      stars: [],
+      reactions: [],
+      forwardedFromId: asal.forwardedFromId ?? asal.id,
+      createdAt: new Date().toISOString()
+    }
+    set((s) => ({
+      messages: {
+        ...s.messages,
+        [conversationId]: [...(s.messages[conversationId] ?? []), optimistik]
+      }
+    }))
+    try {
+      const res = await messagesApi.copy(conversationId, asal.id, clientMsgId)
+      const nyata: Message | undefined = res.data?.message
+      if (nyata) {
+        set((s) => ({
+          messages: {
+            ...s.messages,
+            [conversationId]: (s.messages[conversationId] ?? []).map((m) =>
+              m.id === clientMsgId ? nyata : m
+            )
+          }
+        }))
+      }
+    } catch (e) {
+      console.error('[chat] tempel pesan gagal', e)
+      set((s) => ({
+        messages: {
+          ...s.messages,
+          [conversationId]: (s.messages[conversationId] ?? []).filter(
+            (m) => m.id !== clientMsgId
+          )
+        }
+      }))
+    }
+  },
 
   // Kegagalan SEMENTARA tidak ditunggu dengan jeda tebakan -- klien bertanya
   // pada napas server kapan ia siap, lalu mencoba sekali lagi. Galat seperti
