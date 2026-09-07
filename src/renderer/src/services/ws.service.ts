@@ -15,7 +15,7 @@ class WsService {
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null
   private pongWatchdog: ReturnType<typeof setTimeout> | null = null
   private shouldReconnect = true
-  private reconnectDelay = 3000
+  private reconnectDelay = 1000
   private lastPongAt = 0
   private offlineQueue: Array<{ type: string; payload: unknown }> = []
 
@@ -42,7 +42,7 @@ class WsService {
 
     this.ws.onopen = () => {
       console.log('[WS] Connected')
-      this.reconnectDelay = 3000 // reset backoff setelah sukses
+      this.reconnectDelay = 1000 // reset backoff setelah sukses
       this.lastPongAt = Date.now()
       this.startPing()
       this.drainQueue()
@@ -51,10 +51,12 @@ class WsService {
     this.ws.onmessage = (e) => {
       try {
         const event: WsEvent = JSON.parse(e.data)
-        if (event.type === 'pong') {
-          this.lastPongAt = Date.now()
-          this.resetPongWatchdog()
-        }
+        // Watchdog di-reset oleh pesan APA PUN, bukan hanya pong. Koneksi yang
+        // sedang mengalirkan pesan jelas hidup; menutupnya paksa hanya karena
+        // satu pong hilang justru menambah jeda reconnect -- dan selama soket
+        // mati, TIDAK ADA notifikasi desktop sama sekali.
+        this.lastPongAt = Date.now()
+        this.resetPongWatchdog()
         const set = this.handlers.get(event.type as WsEventType)
         if (set) set.forEach((fn) => fn(event.payload))
       } catch {
@@ -84,16 +86,20 @@ class WsService {
 
   private scheduleReconnect(delayMs: number) {
     if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout)
+    // Jitter mencegah seluruh kantor menyambung ulang pada milidetik yang
+    // sama setelah gangguan jaringan bersama -- itu membanjiri server tepat
+    // ketika ia paling rapuh.
+    const jitter = Math.round(delayMs * (0.8 + Math.random() * 0.4))
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectTimeout = null
       console.log(`[WS] Reconnecting...`)
       this.connect()
-    }, delayMs)
+    }, jitter)
   }
 
   // Dipanggil token-scheduler setelah refresh sukses: konek sekali, token segar.
   reconnectNow() {
-    this.reconnectDelay = 3000
+    this.reconnectDelay = 1000
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout)
       this.reconnectTimeout = null
@@ -186,6 +192,23 @@ class WsService {
 }
 
 export const wsService = new WsService()
+
+// Menunggu backoff saat jaringan JELAS sudah kembali adalah menunggu tanpa
+// alasan. Notifikasi desktop hanya lahir dari NEW_MESSAGE di soket ini, jadi
+// setiap detik soket mati adalah detik tanpa notifikasi -- yang selama ini
+// terasa sebagai "notif PC lambat", padahal servernya sudah mengirim.
+if (typeof window !== 'undefined') {
+  const bangun = (alasan: string): void => {
+    if (wsService.isConnected) return
+    console.debug(`[WS] Bangun (${alasan}) -- sambung ulang segera`)
+    wsService.reconnectNow()
+  }
+  window.addEventListener('online', () => bangun('online'))
+  window.addEventListener('focus', () => bangun('focus'))
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') bangun('visible')
+  })
+}
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {

@@ -27,7 +27,11 @@ export const NOTIF_SOUND_KEY = 'bsi_notif_sound'
 
 // === App info (About dialog) — EDIT DI SINI saat rilis versi baru ===
 export const APP_NAME = 'NNI Messenger'
-export const APP_VERSION = '1.3.3'
+// DIISI SAAT BUILD dari package.json lewat define di electron.vite.config.ts.
+// JANGAN pernah menulis angka versi di sini lagi -- satu-satunya sumber
+// kebenaran adalah package.json, yang juga menamai installer dan APK.
+declare const __APP_VERSION__: string
+export const APP_VERSION = __APP_VERSION__
 export const APP_COPYRIGHT = `© ${new Date().getFullYear()} Nuraline Nutraceuticals Interagency. All rights reserved.`
 
 // URL server penuh untuk ditampilkan (read-only) di Settings.

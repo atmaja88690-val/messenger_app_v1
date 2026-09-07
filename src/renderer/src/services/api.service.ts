@@ -18,6 +18,10 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem(TOKEN_KEY)
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`
+    // Cap token yang BENAR-BENAR dibawa permintaan ini. Tanpa cap ini, saat
+    // 401 kembali kita tidak bisa membedakan "token memang mati" dari "token
+    // sudah diganti penyegaran lain sejak permintaan ini berangkat".
+    ;(config as InternalAxiosRequestConfig & { __tokenUsed?: string }).__tokenUsed = token
   }
   return config
 })
@@ -122,7 +126,26 @@ api.interceptors.response.use(
       original?.url?.includes('/auth/refresh') ||
       original?.url?.includes('/auth/logout')
 
-    if (error.response?.status !== 401 || original._retry || isAuthEndpoint) {
+    if (error.response?.status !== 401 || isAuthEndpoint || !original) {
+      return Promise.reject(error)
+    }
+
+    // JALUR PECUNDANG BALAPAN. Penyegaran lain -- penjadwal proaktif, atau
+    // permintaan lain yang duluan kena 401 -- bisa sudah menyimpan token baru
+    // sejak permintaan ini berangkat. Kalau begitu 401-nya SUDAH BASI: token
+    // yang sah ada di tangan, tinggal dipakai. Dulu permintaan seperti ini
+    // langsung ditolak, dan itulah yang memunculkan kotak "HTTP 401" pada
+    // gambar sekaligus daftar chat yang kadang kosong setelah laptop bangun.
+    const tokenSekarang = localStorage.getItem(TOKEN_KEY)
+    const tokenDipakai = (original as { __tokenUsed?: string }).__tokenUsed
+    const ulangBasi = (original as { __staleRetry?: number }).__staleRetry ?? 0
+    if (tokenSekarang && tokenDipakai && tokenSekarang !== tokenDipakai && ulangBasi < 2) {
+      ;(original as { __staleRetry?: number }).__staleRetry = ulangBasi + 1
+      original.headers.Authorization = `Bearer ${tokenSekarang}`
+      return api(original)
+    }
+
+    if (original._retry) {
       return Promise.reject(error)
     }
 
@@ -137,8 +160,14 @@ api.interceptors.response.use(
     if (isReactiveRefreshing) {
       return new Promise((resolve, reject) => {
         refreshQueue.push((token: string | null) => {
-          if (!token) return reject(error)
-          original.headers.Authorization = `Bearer ${token}`
+          // token null TIDAK berarti tidak ada token: refresh yang kalah
+          // balapan mengembalikan null sementara penyegaran pemenang sudah
+          // menyimpan token baru. Menolak di sini membuang permintaan yang
+          // sebenarnya masih bisa jalan. Kalau memang sudah logout,
+          // localStorage kosong dan penolakan tetap terjadi.
+          const dipakai = token ?? localStorage.getItem(TOKEN_KEY)
+          if (!dipakai) return reject(error)
+          original.headers.Authorization = `Bearer ${dipakai}`
           resolve(api(original))
         })
       })

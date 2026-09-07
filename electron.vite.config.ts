@@ -1,6 +1,13 @@
 import { resolve } from 'path'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { readFileSync } from 'fs'
+
+// Versi diambil dari package.json SAAT BUILD. Sebelumnya APP_VERSION ditulis
+// tangan di constants.ts, dan sekali terlupa akibatnya tidak kelihatan sampai
+// terlambat: v1.3.4 sudah terpasang di laptop karyawan sementara dialog About
+// menyebut 1.3.3, sehingga tidak ada cara memastikan versi mana yang beredar.
+const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as { version: string }
 
 export default defineConfig({
   main: {},
@@ -9,6 +16,7 @@ export default defineConfig({
     resolve: {
       alias: { '@renderer': resolve('src/renderer/src') }
     },
+    define: { __APP_VERSION__: JSON.stringify(pkg.version) },
     plugins: [react()],
     server: {
       proxy: {
