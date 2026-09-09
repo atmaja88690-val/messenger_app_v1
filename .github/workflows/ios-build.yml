@@ -44,10 +44,32 @@ jobs:
             -scheme App \
             -destination 'generic/platform=iOS' \
             -configuration Debug \
+            -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             build 2>&1 | tee build-ios.log
+
+      - name: Kemas menjadi .ipa tanpa tanda tangan
+        run: |
+          set -e
+          APP=build/Build/Products/Debug-iphoneos/App.app
+          ls -la "$APP"
+          /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist"
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry NNIMessenger-unsigned.ipa Payload
+          ls -lh NNIMessenger-unsigned.ipa
+
+      - name: Unggah .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: NNIMessenger-unsigned-ipa
+          path: NNIMessenger-unsigned.ipa
+          retention-days: 14
 
       - name: Simpan log build
         if: always()
