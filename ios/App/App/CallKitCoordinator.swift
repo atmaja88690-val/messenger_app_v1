@@ -40,7 +40,6 @@ final class CallKitCoordinator: NSObject, CXProviderDelegate {
         let cfg: CXProviderConfiguration
         if #available(iOS 14.0, *) {
             cfg = CXProviderConfiguration()
-            cfg.localizedName = "BSI Messenger"
         } else {
             cfg = CXProviderConfiguration(localizedName: "BSI Messenger")
         }
