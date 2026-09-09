@@ -1,0 +1,58 @@
+name: iOS Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v4
+
+      - name: Lihat Xcode yang tersedia
+        run: ls -d /Applications/Xcode*.app
+
+      - name: Pilih Xcode terbaru
+        run: |
+          XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Memakai $XC"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+
+      - name: Siapkan Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Pasang dependency
+        run: npm ci
+
+      - name: Build aset web
+        run: npm run build
+
+      - name: Capacitor sync ios
+        run: npx cap sync ios
+
+      - name: Build iOS tanpa penandatanganan
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -destination 'generic/platform=iOS' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee build-ios.log
+
+      - name: Simpan log build
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-ios-log
+          path: build-ios.log
+          retention-days: 7
