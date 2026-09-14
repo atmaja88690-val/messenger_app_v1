@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core'
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { useChatStore } from '../../stores/chat.store'
 import { useAuthStore } from '../../stores/auth.store'
@@ -278,7 +279,7 @@ function EditMessageDialog({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void simpan() }
+              if (e.key === 'Enter' && !e.shiftKey && !Capacitor.isNativePlatform()) { e.preventDefault(); void simpan() }
               else if (e.key === 'Escape') onClose()
             }}
             className="flex-1 min-w-0 px-4 py-2.5 bg-gray-100 rounded-2xl text-gray-900 focus:outline-none focus:bg-white border border-transparent focus:border-[#4aa3df] resize-none max-h-32 leading-6" rows={2}
@@ -931,7 +932,7 @@ export default function ChatArea({
                 ref={textInputRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend() } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !Capacitor.isNativePlatform()) { e.preventDefault(); void handleSend() } }}
                 onPaste={handlePaste}
                 placeholder="Type a message..."
                 className="flex-1 min-w-0 px-4 py-2.5 bg-transparent text-gray-900 rounded-2xl focus:outline-none placeholder-gray-400 resize-none max-h-32 overflow-y-auto leading-6" rows={1} onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 128) + 'px' }}
