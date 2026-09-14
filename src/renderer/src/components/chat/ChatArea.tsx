@@ -229,7 +229,7 @@ function EditMessageDialog({
 }) {
   const [draft, setDraft] = useState(message.body ?? '')
   const [saving, setSaving] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
     inputRef.current?.focus()
     inputRef.current?.select()
@@ -269,19 +269,19 @@ function EditMessageDialog({
         </div>
         <div className="px-4 py-5 bg-[#eef2f5] flex justify-end">
           <div className="max-w-[75%] px-3 py-2 rounded-2xl bg-[#e5fbd0] text-gray-900 text-sm break-words">
-            {message.body}
+            <span className="whitespace-pre-wrap break-words">{message.body}</span>
           </div>
         </div>
         <div className="flex items-center gap-2 px-4 py-3">
-          <input
+          <textarea
             ref={inputRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') void simpan()
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void simpan() }
               else if (e.key === 'Escape') onClose()
             }}
-            className="flex-1 min-w-0 px-4 py-2.5 bg-gray-100 rounded-full text-gray-900 focus:outline-none focus:bg-white border border-transparent focus:border-[#4aa3df]"
+            className="flex-1 min-w-0 px-4 py-2.5 bg-gray-100 rounded-2xl text-gray-900 focus:outline-none focus:bg-white border border-transparent focus:border-[#4aa3df] resize-none max-h-32 leading-6" rows={2}
           />
           <button
             onClick={() => void simpan()}
@@ -382,7 +382,7 @@ export default function ChatArea({
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [editing, setEditing] = useState<Message | null>(null)
   const [emojiOpen, setEmojiOpen] = useState(false)
-  const textInputRef = useRef<HTMLInputElement>(null)
+  const textInputRef = useRef<HTMLTextAreaElement>(null)
 
   // Cari pesan asli dari daftar yang sudah dimuat. Bisa null kalau pesan
   // aslinya sudah ter-scroll jauh dan belum dimuat -> tampilkan fallback.
@@ -407,6 +407,7 @@ export default function ChatArea({
       const file = pendingImage
       clearPending()
       setText('')
+      if (textInputRef.current) textInputRef.current.style.height = 'auto'
       await sendImage(file, t || undefined)
       return
     }
@@ -414,6 +415,7 @@ export default function ChatArea({
     const rid = replyTo?.id
     setReplyTo(null)
     setText('')
+    if (textInputRef.current) textInputRef.current.style.height = 'auto'
     await sendText(t, rid)
   }
 
@@ -460,7 +462,7 @@ export default function ChatArea({
 
   // Paste gambar dari clipboard OS langsung ke chat (Ctrl+V di kolom pesan).
   // Teks biasa dibiarkan lewat ke perilaku bawaan input.
-  const handlePaste = async (e: React.ClipboardEvent<HTMLInputElement>): Promise<void> => {
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>): Promise<void> => {
     const items = e.clipboardData?.items
     if (!items) return
     for (const item of Array.from(items)) {
@@ -715,7 +717,7 @@ export default function ChatArea({
                       ref={(el) => { if (el) bubbleRefs.current.set(m.id, el) }}
                       className={`text-sm break-words select-text ${hasImage ? 'px-1.5' : ''}`}
                     >
-                      {m.body}
+                      <span className="whitespace-pre-wrap break-words">{m.body}</span>
                     </div>
                   )}
                   <div className={`text-[10px] mt-0.5 flex items-center justify-end gap-1 ${hasImage ? 'px-1.5 pb-0.5' : ''} ${mine ? 'text-green-700' : 'text-gray-400'}`}>
@@ -925,14 +927,14 @@ export default function ChatArea({
                   <line x1="15" y1="9" x2="15.01" y2="9" />
                 </svg>
               </button>
-              <input
+              <textarea
                 ref={textInputRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend() } }}
                 onPaste={handlePaste}
                 placeholder="Type a message..."
-                className="flex-1 min-w-0 px-4 py-2.5 bg-transparent text-gray-900 rounded-full focus:outline-none placeholder-gray-400"
+                className="flex-1 min-w-0 px-4 py-2.5 bg-transparent text-gray-900 rounded-2xl focus:outline-none placeholder-gray-400 resize-none max-h-32 overflow-y-auto leading-6" rows={1} onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 128) + 'px' }}
               />
               <button
                 onClick={handlePickFile}

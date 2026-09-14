@@ -128,7 +128,7 @@ function unreadOf(c: Conversation, myId?: string): number {
 function previewOf(c: Conversation): string {
   const m = c.lastMessage
   if (!m) return 'No messages yet'
-  if (m.body) return m.body
+  if (m.body) return m.body.replace(/\s*\n+\s*/g, ' ')
   if (m.type === 'AUDIO') return '🎤 Voice message'
   if (m.type === 'IMAGE') return '📷 Photo'
   if (m.type === 'FILE') return '📎 File'
