@@ -57,6 +57,7 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const [showPanel, setShowPanel] = useState(true)
+  const [showPanelMobile, setShowPanelMobile] = useState(false)
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 1100)
 
   // Panel kanan auto-hide saat window sempit (<1100px) supaya 3 kolom tidak
@@ -254,12 +255,17 @@ function App() {
               onSelectConversation={() => setMobileView('chat')}
             />
             <ChatArea
-              onOpenPanel={() => setShowPanel(true)}
-              panelOpen={showPanel || isNarrow}
+              onOpenPanel={() => (isNarrow ? setShowPanelMobile(true) : setShowPanel(true))}
+              panelOpen={isNarrow ? showPanelMobile : showPanel}
               mobileHidden={mobileView === 'list'}
               onBackToList={() => setMobileView('list')}
             />
             {showPanel && !isNarrow && <ContactInfoPanel onClose={() => setShowPanel(false)} />}
+            {isNarrow && showPanelMobile && (
+              <div className="fixed inset-0 z-50 bg-white flex">
+                <ContactInfoPanel onClose={() => setShowPanelMobile(false)} />
+              </div>
+            )}
           </>
         ) : activeSection === 'inbox' ? (
           <InboxSection />

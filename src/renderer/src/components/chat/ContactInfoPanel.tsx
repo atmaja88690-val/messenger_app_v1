@@ -51,7 +51,7 @@ export default function ContactInfoPanel({ onClose }: Props) {
 
   if (!active) {
     return (
-      <div className="w-72 flex-shrink-0 border-l border-gray-200 bg-white flex items-center justify-center p-4">
+      <div className="w-full sm:w-72 flex-shrink-0 border-l border-gray-200 bg-white flex items-center justify-center p-4">
         <span className="text-gray-400 text-sm text-center">Select a conversation</span>
       </div>
     )
@@ -66,7 +66,7 @@ export default function ContactInfoPanel({ onClose }: Props) {
 
 
   return (
-    <div className="w-72 flex-shrink-0 border-l border-gray-200 bg-white flex flex-col overflow-y-auto">
+    <div className="w-full sm:w-72 flex-shrink-0 border-l border-gray-200 bg-white flex flex-col overflow-y-auto">
       <div className="flex justify-end p-3">
         <button
           type="button"
