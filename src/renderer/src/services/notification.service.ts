@@ -134,6 +134,37 @@ wsService.on('nudge', (p) => {
   const nama = n.fromName || 'Seseorang'
   void window.api?.nudgeWindow?.()
   bunyiColek()
+  goyangAplikasi()
   // silent: true -- bunyinya sudah kita mainkan sendiri di atas.
   void window.api?.showNotification?.({ title: nama, body: 'nudged you', silent: true })
 })
+
+// Goyangan visual. Dipakai karena setBounds() diabaikan Windows saat jendela
+// sedang dimaksimalkan; menggoyang isi jendela selalu terlihat -- di desktop
+// maupun Android, di mana bingkai jendela memang tidak bisa digeser sama sekali.
+function goyangAplikasi(): void {
+  try {
+    const ID = 'nnim-goyang-style'
+    if (!document.getElementById(ID)) {
+      const st = document.createElement('style')
+      st.id = ID
+      st.textContent =
+        '@keyframes nnimGoyang{0%,100%{transform:translateX(0)}' +
+        '10%{transform:translateX(-12px)}20%{transform:translateX(12px)}' +
+        '30%{transform:translateX(-10px)}40%{transform:translateX(10px)}' +
+        '50%{transform:translateX(-7px)}60%{transform:translateX(7px)}' +
+        '70%{transform:translateX(-4px)}80%{transform:translateX(4px)}' +
+        '90%{transform:translateX(-2px)}}' +
+        '.nnim-goyang{animation:nnimGoyang .6s ease-in-out 2}'
+      document.head.appendChild(st)
+    }
+    const el = (document.getElementById('root') || document.body) as HTMLElement
+    el.classList.remove('nnim-goyang')
+    void el.offsetWidth
+    el.classList.add('nnim-goyang')
+    window.setTimeout(() => el.classList.remove('nnim-goyang'), 1300)
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([120, 60, 120])
+  } catch {
+    // Goyangan hanya hiasan; kegagalannya tidak boleh menghentikan colek.
+  }
+}

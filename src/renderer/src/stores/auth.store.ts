@@ -133,7 +133,13 @@ export const useAuthStore = create<AuthState>((set) => {
         Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
         localStorage.setItem(REFRESH_KEY, data.refreshToken)
         Preferences.set({ key: REFRESH_KEY, value: data.refreshToken }).catch(() => {})
-        set({ user: data.user, isAuthenticated: true, isLoading: false })
+        // Status presence hidup di Redis; kolom DB bisa basi (OFFLINE) padahal WS
+        // sudah tersambung. Pertahankan status yang sudah ada, dan jangan pernah
+        // menampilkan OFFLINE untuk diri sendiri saat sesi ini jelas hidup.
+        set((s) => {
+          const st = s.user?.status ?? (data.user.status === 'OFFLINE' ? 'AVAILABLE' : data.user.status)
+          return { user: { ...data.user, status: st }, isAuthenticated: true, isLoading: false }
+        })
         wsService.connect()
         startProactiveRefreshCycle(data.accessToken)
       } catch (err: unknown) {
@@ -184,7 +190,13 @@ export const useAuthStore = create<AuthState>((set) => {
         const { data } = await usersApi.me()
         // TODO (Langkah 8): verifikasi shape — data.user atau data langsung?
         // Konfirmasi: curl -H "Authorization: Bearer <token>" GET /api/users/me
-        set({ user: data.user, isAuthenticated: true, isLoading: false })
+        // Status presence hidup di Redis; kolom DB bisa basi (OFFLINE) padahal WS
+        // sudah tersambung. Pertahankan status yang sudah ada, dan jangan pernah
+        // menampilkan OFFLINE untuk diri sendiri saat sesi ini jelas hidup.
+        set((s) => {
+          const st = s.user?.status ?? (data.user.status === 'OFFLINE' ? 'AVAILABLE' : data.user.status)
+          return { user: { ...data.user, status: st }, isAuthenticated: true, isLoading: false }
+        })
         startProactiveRefreshCycle(token)
       } catch {
         wsService.disconnect()
