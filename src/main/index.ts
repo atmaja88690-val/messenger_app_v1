@@ -420,6 +420,33 @@ app.whenReady().then(async () => {
     mainWindow.focus()
   })
 
+  // window:nudge -- colek ala Virola: angkat jendela, rebut fokus, goyang,
+  // lalu kedip taskbar. setAlwaysOnTop sesaat dipakai karena Windows menolak
+  // memberi fokus ke aplikasi latar; dilepas lagi setelah 1,2 detik supaya
+  // jendela tidak permanen menutupi yang lain.
+  ipcMain.handle('window:nudge', () => {
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.setAlwaysOnTop(true)
+    mainWindow.focus()
+    setTimeout(() => mainWindow?.setAlwaysOnTop(false), 1200)
+    mainWindow.flashFrame(true)
+    setTimeout(() => mainWindow?.flashFrame(false), 3000)
+    const asal = mainWindow.getBounds()
+    const pola = [14, -14, 12, -12, 9, -9, 6, -6, 3, -3, 0]
+    let i = 0
+    const timer = setInterval(() => {
+      if (!mainWindow || mainWindow.isDestroyed() || i >= pola.length) {
+        clearInterval(timer)
+        mainWindow?.setBounds(asal)
+        return
+      }
+      mainWindow.setBounds({ ...asal, x: asal.x + pola[i] })
+      i++
+    }, 45)
+  })
+
   // Proxy lokal HANYA untuk production build -- dev sudah punya proxy Vite sendiri.
   if (!is.dev) {
     try {

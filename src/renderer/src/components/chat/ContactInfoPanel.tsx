@@ -3,6 +3,7 @@ import { useAuthStore } from '../../stores/auth.store'
 import type { Conversation } from '../../types'
 import { useState } from 'react'
 import Avatar from './Avatar'
+import { nudgeApi } from '../../services/api.service'
 import PartnerProfileDialog from './PartnerProfileDialog'
 
 function initials(name: string): string {
@@ -33,6 +34,18 @@ interface Props {
 export default function ContactInfoPanel({ onClose }: Props) {
   const { conversations, activeId } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
+
+  // Nudge. 429 dari server berarti masih dalam jeda 30 detik -- bukan galat,
+  // hanya pengingat, jadi pesannya dibedakan.
+  const sendNudge = async (): Promise<void> => {
+    if (!activeId) return
+    try {
+      await nudgeApi.send(activeId)
+    } catch (err) {
+      const st = (err as { response?: { status?: number } })?.response?.status
+      alert(st === 429 ? 'Please wait before nudging again.' : 'Nudge failed to send.')
+    }
+  }
   const active = conversations.find((c) => c.id === activeId)
   const [showProfile, setShowProfile] = useState(false)
 
@@ -92,6 +105,10 @@ export default function ContactInfoPanel({ onClose }: Props) {
             <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
           </svg>
           <span className="text-sm">User profile</span>
+        </button>
+        <button type="button" onClick={() => void sendNudge()} disabled={!isDirect} title="Shake the other person's window" className="flex items-center gap-3 px-2 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z" /></svg>
+          <span className="text-sm">Send Nudge</span>
         </button>
       </div>
 

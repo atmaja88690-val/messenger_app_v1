@@ -45,6 +45,8 @@ const api = {
   pickDownloadFolder: () => ipcRenderer.invoke('settings:pickFolder'),
   // Dipanggil dari notification.service.ts saat toast diklik: fokuskan window OS.
   focusWindow: () => ipcRenderer.invoke('window:focus'),
+  // Colek: angkat + goyang jendela OS. Handler window:nudge di main/index.ts.
+  nudgeWindow: () => ipcRenderer.invoke('window:nudge'),
   // Toast lewat main process (timeoutType 'never'). Resolve: clicked/closed/failed/unsupported.
   showNotification: (opts: { title: string; body: string; silent?: boolean }) =>
     ipcRenderer.invoke('notify:show', opts)

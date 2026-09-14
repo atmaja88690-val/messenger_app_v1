@@ -370,6 +370,11 @@ export const messagesApi = {
 // Diukur 31 Agu: MinIO menjawab 4-45 ms, backend < 1,7 detik.
 const BLOB_TIMEOUT = 60000
 
+export const nudgeApi = {
+  // Colek. 202 = terkirim, 429 = masih dalam jeda 30 detik per pasangan.
+  send: (conversationId: string) => api.post(`/nudge/${conversationId}`)
+}
+
 export const attachmentsApi = {
   getFile: async (attachmentId: string): Promise<string> => {
     const res = await api.get(`/attachments/file/${attachmentId}`, {
