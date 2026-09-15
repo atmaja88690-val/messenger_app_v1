@@ -11,7 +11,7 @@ const NATIVE_BACKEND = 'https://chat.bsilongevity.com:4443'
 export const API_URL = IS_NATIVE ? `${NATIVE_BACKEND}/api` : '/api'
 export const WS_URL = IS_NATIVE
   ? 'wss://chat.bsilongevity.com:4443/ws'
-  : `ws://${location.host}/ws`
+  : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`
 
 export const TOKEN_KEY = 'bsi_access_token'
 export const REFRESH_KEY = 'bsi_refresh_token'
