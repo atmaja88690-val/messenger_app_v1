@@ -420,11 +420,18 @@ export const attachmentsApi = {
     })
     return res.data
   },
+  // timeout DISAMAKAN dengan unduhan biner. Sebelumnya inilah satu-satunya
+  // transfer biner yang masih memakai 15 detik bawaan instance, padahal
+  // kecepatan UNGGAH di 4G jauh di bawah kecepatan unduh -- foto beberapa
+  // ratus kilobyte dari Android rutin melewatinya dan axios membatalkan
+  // sendiri (ECONNABORTED), terbaca sebagai gagal kirim gambar padahal
+  // server sehat. Bandingkan uploadVoice yang sudah memakai 90000.
   upload: async (conversationId: string, file: File): Promise<AttachmentInput> => {
     const form = new FormData()
     form.append('file', file)
     const res = await api.post(`/attachments/upload/${conversationId}`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: BLOB_TIMEOUT
     })
     return res.data
   }
