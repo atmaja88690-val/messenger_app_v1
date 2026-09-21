@@ -6,3 +6,9 @@ out
 *.log*
 *.sql
 *.bak*
+
+# Artefak build TypeScript -- cache inkremental, bukan kode
+*.tsbuildinfo
+
+# Folder alat bantu editor
+.kiro/
