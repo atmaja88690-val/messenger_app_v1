@@ -3,6 +3,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { useChatStore } from '../../stores/chat.store'
 import { useAuthStore } from '../../stores/auth.store'
 import AttachmentImage from './AttachmentImage'
+import AttachmentFile from './AttachmentFile'
 import VoiceRecorder from './VoiceRecorder'
 import VoiceBubble from './VoiceBubble'
 import EmojiPicker from './EmojiPicker'
@@ -34,6 +35,16 @@ function dayKey(iso: string): string {
 }
 
 const MAX_IMAGE_MB = 20
+
+// Dokumen dan arsip: 25 MB, menyamai MAX_FILE_SIZE_MB di server. Gambar
+// sengaja tetap 20 MB -- batas yang sudah berjalan, tidak ada alasan
+// mengubahnya hari ini.
+const MAX_FILE_MB = 25
+
+// Petunjuk untuk dialog berkas OS saja, BUKAN validasi. Daftar MIME yang
+// sah hanya hidup di satu tempat: ALLOWED_MIME_TYPES di server. Menyalinnya
+// ke klien berarti dua daftar yang pasti menyimpang suatu hari.
+const FILE_ACCEPT = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.zip,.rar'
 // Cermin dari EDIT_WINDOW_MS di backend. Diduplikasi dengan sengaja: klien
 // memakainya untuk MENYEMBUNYIKAN butir menu yang pasti ditolak, server
 // tetap satu-satunya yang menegakkannya.
@@ -313,7 +324,7 @@ export default function ChatArea({
   mobileHidden?: boolean
   onBackToList?: () => void
 }) {
-  const { conversations, activeId, messages, sendText, sendImage, loadingMsgs, markRead, readCursors, deleteMessage, toggleReaction, editMessage, togglePin, loadPinned, pinnedMsg, toggleStar } = useChatStore()
+  const { conversations, activeId, messages, sendText, sendImage, sendFile, loadingMsgs, markRead, readCursors, deleteMessage, toggleReaction, editMessage, togglePin, loadPinned, pinnedMsg, toggleStar } = useChatStore()
   const myId = useAuthStore((s) => s.user?.id)
   const [text, setText] = useState('')
   // Saat merekam atau meninjau, kolom teks dan tombol Send disembunyikan:
@@ -390,7 +401,10 @@ export default function ChatArea({
   const findMessage = (id: string): Message | undefined =>
     raw.find((x) => x.id === id)
 
-  // Gambar yang menunggu konfirmasi kirim (dari paste atau tombol lampiran).
+  // Berkas yang menunggu konfirmasi kirim (dari paste atau tombol lampiran).
+  // Namanya tetap pendingImage supaya jalur yang sudah terbukti tidak ikut
+  // berubah, tapi sejak dukungan dokumen masuk ia menampung gambar MAUPUN
+  // dokumen. pendingUrl hanya terisi untuk gambar.
   const [pendingImage, setPendingImage] = useState<File | null>(null)
   const [pendingUrl, setPendingUrl] = useState<string | null>(null)
 
@@ -406,10 +420,12 @@ export default function ChatArea({
     const t = text.trim()
     if (pendingImage) {
       const file = pendingImage
+      const isImage = file.type.startsWith('image/')
       clearPending()
       setText('')
       if (textInputRef.current) textInputRef.current.style.height = 'auto'
-      await sendImage(file, t || undefined)
+      if (isImage) await sendImage(file, t || undefined)
+      else await sendFile(file, t || undefined)
       return
     }
     if (!t) return
@@ -445,19 +461,21 @@ export default function ChatArea({
 
   // Validasi dipakai bersama oleh tombol lampiran dan paste dari clipboard,
   // supaya aturannya tidak pernah menyimpang di antara dua jalur.
-  const validateAndSendImage = async (file: File): Promise<void> => {
-    if (!file.type.startsWith('image/')) {
-      alert('Only image files are supported for now.')
-      return
-    }
-    if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
-      alert(`Image must be ${MAX_IMAGE_MB}MB or smaller.`)
+  const validateAndStage = async (file: File): Promise<void> => {
+    const isImage = file.type.startsWith('image/')
+    const maxMb = isImage ? MAX_IMAGE_MB : MAX_FILE_MB
+    // Jenis berkas TIDAK diperiksa di sini -- server yang memutuskan, dan
+    // alasannya sudah tampil apa adanya lewat alert di sendFile.
+    if (file.size > maxMb * 1024 * 1024) {
+      alert(`File must be ${maxMb}MB or smaller.`)
       return
     }
     setPendingImage(file)
     setPendingUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev)
-      return URL.createObjectURL(file)
+      // Hanya gambar yang punya pratinjau lokal. Untuk dokumen pendingUrl
+      // tetap null dan kartu nama-berkas yang tampil sebagai gantinya.
+      return isImage ? URL.createObjectURL(file) : null
     })
   }
 
@@ -471,7 +489,7 @@ export default function ChatArea({
         const file = item.getAsFile()
         if (!file) continue
         e.preventDefault()
-        await validateAndSendImage(file)
+        await validateAndStage(file)
         return
       }
     }
@@ -489,7 +507,7 @@ export default function ChatArea({
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    await validateAndSendImage(file)
+    await validateAndStage(file)
   }
 
   const openTextMenu = (e: React.MouseEvent, m: Message) => {
@@ -663,6 +681,7 @@ export default function ChatArea({
           const showDate = k !== lastDay
           lastDay = k
           const hasImage = m.type === 'IMAGE' && m.attachments && m.attachments.length > 0
+          const hasFile = m.type === 'FILE' && m.attachments && m.attachments.length > 0
           const hasVoice = m.type === 'AUDIO' && m.attachments && m.attachments.length > 0
           return (
             <div key={m.id}>
@@ -711,6 +730,13 @@ export default function ChatArea({
                         conversationId={activeId!}
                         canDelete={mine}
                       />
+                    </div>
+                  )}
+                  {/* Berkasnya TIDAK diunduh saat bubble muncul, hanya saat
+                      tombol unduh ditekan -- sama seperti nota suara. */}
+                  {hasFile && (
+                    <div className="mb-1">
+                      <AttachmentFile attachment={m.attachments![0]} mine={mine} />
                     </div>
                   )}
                   {m.body && (
@@ -875,9 +901,19 @@ export default function ChatArea({
             </div>
           </>
         )}
-        {pendingUrl && (
+        {pendingImage && (
           <div className="mb-2 inline-flex relative">
-            <img src={pendingUrl} alt="preview" className="h-20 w-20 object-cover rounded-lg border border-gray-300" />
+            {pendingUrl ? (
+              <img src={pendingUrl} alt="preview" className="h-20 w-20 object-cover rounded-lg border border-gray-300" />
+            ) : (
+              <div className="h-20 max-w-[220px] px-3 flex items-center gap-2 rounded-lg border border-gray-300 bg-gray-50">
+                <span className="text-2xl">&#128196;</span>
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-gray-800 truncate">{pendingImage.name}</div>
+                  <div className="text-[10px] text-gray-500">{Math.max(1, Math.round(pendingImage.size / 1024))} KB</div>
+                </div>
+              </div>
+            )}
             <button
               onClick={clearPending}
               title="Cancel"
@@ -907,7 +943,7 @@ export default function ChatArea({
           </div>
         )}
         <div className="flex gap-2 items-center">
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+          <input ref={fileInputRef} type="file" accept={FILE_ACCEPT} className="hidden" onChange={handleFileChange} />
           {/* Lampiran pindah KE DALAM pil input. Di luar, ia menjadi kontrol
               keempat yang bersaing perhatian dengan mic, teks, dan kirim --
               padahal pada satu saat hanya satu tindakan yang masuk akal. */}

@@ -20,6 +20,7 @@ interface ChatState {
   selectConversation: (id: string) => Promise<void>
   sendText: (body: string, replyToId?: string) => Promise<void>
   sendImage: (file: File, caption?: string) => Promise<void>
+  sendFile: (file: File, caption?: string) => Promise<void>
   sendVoice: (blob: Blob, durationMs: number, peaks: number[]) => Promise<void>
   deleteMessage: (conversationId: string, messageId: string) => Promise<void>
   // myId dioper dari komponen, bukan diambil dari auth store, supaya store
@@ -239,7 +240,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         storageKey: '',
         fileName: 'voice.webm',
         mimeType: blob.type || 'audio/webm',
-        size: blob.size,
+        sizeBytes: blob.size,
         durationMs,
         waveformPeaks: peaks,
         createdAt: new Date().toISOString(),
@@ -293,7 +294,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         storageKey: '',
         fileName: file.name,
         mimeType: file.type,
-        size: file.size,
+        sizeBytes: file.size,
         createdAt: new Date().toISOString(),
         // field tambahan non-standar untuk preview lokal, dibaca komponen AttachmentImage
         // sebelum attachment asli (dgn id server) tersedia
@@ -331,6 +332,62 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const ax = e as { response?: { data?: { error?: string } }; message?: string }
       const detail = ax.response?.data?.error ?? ax.message ?? 'Unknown error'
       alert(`Failed to send image: ${detail}`)
+    }
+  },
+  sendFile: async (file, caption) => {
+    const convId = get().activeId
+    if (!convId) return
+    const me = useAuthStore.getState().user
+    const clientMsgId = nanoid()
+
+    // Beda dari sendImage hanya pada pratinjau: dokumen tidak punya blob URL
+    // lokal, jadi tidak ada createObjectURL maupun revokeObjectURL. Sisanya
+    // sengaja ditiru baris demi baris sesuai konvensi di baris 218 -- pesan
+    // optimistis, clientMsgId, dan pembuangan saat gagal sudah terbukti di
+    // jalur gambar dan dipakai karyawan setiap hari.
+    const optimistic: Message = {
+      id: clientMsgId,
+      conversationId: convId,
+      senderId: me?.id ?? '',
+      sender: me ?? undefined,
+      type: 'FILE',
+      body: caption ?? '',
+      clientMsgId,
+      createdAt: new Date().toISOString(),
+      attachments: [{
+        id: clientMsgId,
+        messageId: clientMsgId,
+        storageKey: '',
+        fileName: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        createdAt: new Date().toISOString()
+      } as Attachment]
+    }
+    set((s) => ({
+      messages: { ...s.messages, [convId]: [...(s.messages[convId] ?? []), optimistic] }
+    }))
+
+    try {
+      const uploaded = await attachmentsApi.upload(convId, file)
+      await messagesApi.send(convId, caption ?? '', clientMsgId, {
+        type: 'FILE',
+        attachments: [uploaded]
+      })
+    } catch (e) {
+      console.error('[chat] sendFile gagal', e)
+      // Sama seperti jalur gambar: unggahan gagal -> pesan optimistis DIBUANG.
+      // Kegagalan yang menyamar sebagai keberhasilan lebih buruk daripada
+      // kegagalan yang terang-terangan.
+      set((s) => ({
+        messages: {
+          ...s.messages,
+          [convId]: (s.messages[convId] ?? []).filter((m) => m.clientMsgId !== clientMsgId)
+        }
+      }))
+      const ax = e as { response?: { data?: { error?: string } }; message?: string }
+      const detail = ax.response?.data?.error ?? ax.message ?? 'Unknown error'
+      alert(`Failed to send file: ${detail}`)
     }
   },
 

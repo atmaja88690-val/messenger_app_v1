@@ -348,7 +348,7 @@ export default function AttachmentImage({ attachment, messageId, conversationId,
             <div className="space-y-1.5">
               <div><span className="text-gray-400">File name:</span> {attachment.fileName}</div>
               <div><span className="text-gray-400">Type:</span> {attachment.mimeType}</div>
-              <div><span className="text-gray-400">Size:</span> {formatBytes(attachment.size)}</div>
+              <div><span className="text-gray-400">Size:</span> {formatBytes(attachment.sizeBytes)}</div>
               <div><span className="text-gray-400">Uploaded:</span> {new Date(attachment.createdAt).toLocaleString('en-US')}</div>
             </div>
             <button
