@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useAuthStore } from '../../stores/auth.store'
+import { getAccessToken } from '../../services/auth-token'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -11,7 +12,7 @@ export default function LoginPage() {
   const handleSubmit = async () => {
     if (!username || !password) return
     await login(username, password)
-    if (localStorage.getItem('bsi_access_token')) {
+    if (getAccessToken()) {
       navigate({ to: '/' })
     }
   }

@@ -11,7 +11,8 @@
 
 import { create } from 'zustand'
 import type { User } from '../types'
-import { TOKEN_KEY, REFRESH_KEY } from '../config/constants'
+import { TOKEN_KEY, REFRESH_KEY, IS_WEB } from '../config/constants'
+import { getAccessToken, setAccessToken, removeAccessToken } from '../services/auth-token'
 import { authApi, usersApi } from '../services/api.service'
 import { wsService } from '../services/ws.service'
 import { unregisterPushAndroid } from '../services/push-android.service'
@@ -39,13 +40,15 @@ interface AuthState {
  * token-scheduler wrap callback dgn isRefreshing lock — auth.store tidak perlu setRefreshing().
  */
 function startProactiveRefreshCycle(accessToken: string): void {
+  // WEB tidak punya refresh token; SERVER yang memperbarui token lewat WS.
+  if (IS_WEB) return
   scheduleProactiveRefresh(accessToken, async (): Promise<void> => {
     const refreshToken = localStorage.getItem(REFRESH_KEY)
     if (!refreshToken) return
 
     try {
       const { data } = await authApi.refresh(refreshToken)
-      localStorage.setItem(TOKEN_KEY, data.accessToken)
+      setAccessToken(data.accessToken)
       Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
       localStorage.setItem(REFRESH_KEY, data.refreshToken)
       Preferences.set({ key: REFRESH_KEY, value: data.refreshToken }).catch(() => {})
@@ -70,13 +73,23 @@ function startProactiveRefreshCycle(accessToken: string): void {
  * No-op aman di Electron (Preferences kosong kalau belum pernah di-set di situ).
  */
 export async function restoreAuthTokensFromPreferences(): Promise<void> {
-  if (localStorage.getItem(TOKEN_KEY)) return
+  // WEB: tidak ada token persisten. Sekaligus sapu sisa token era lama, saat
+  // web masih memakai /login native (localStorage + cermin Preferences).
+  if (IS_WEB) {
+    const lama = window.localStorage
+    lama.removeItem(TOKEN_KEY)
+    lama.removeItem(REFRESH_KEY)
+    Preferences.remove({ key: TOKEN_KEY }).catch(() => {})
+    Preferences.remove({ key: REFRESH_KEY }).catch(() => {})
+    return
+  }
+  if (getAccessToken()) return
   try {
     const [{ value: access }, { value: refresh }] = await Promise.all([
       Preferences.get({ key: TOKEN_KEY }),
       Preferences.get({ key: REFRESH_KEY })
     ])
-    if (access) localStorage.setItem(TOKEN_KEY, access)
+    if (access) setAccessToken(access)
     if (refresh) localStorage.setItem(REFRESH_KEY, refresh)
   } catch (e) {
     console.error('[auth.store] Gagal restore token dari Preferences:', e)
@@ -95,7 +108,7 @@ export const useAuthStore = create<AuthState>((set) => {
     _bsiLogoutHandler = () => {
       clearProactiveRefresh()
       wsService.disconnect()
-      localStorage.removeItem(TOKEN_KEY)
+      removeAccessToken()
       localStorage.removeItem(REFRESH_KEY)
       Preferences.remove({ key: TOKEN_KEY }).catch(() => {})
       Preferences.remove({ key: REFRESH_KEY }).catch(() => {})
@@ -120,7 +133,7 @@ export const useAuthStore = create<AuthState>((set) => {
         wsService.disconnect()
         await authApi.logout().catch(() => {})
         clearProactiveRefresh()
-        localStorage.removeItem(TOKEN_KEY)
+        removeAccessToken()
         localStorage.removeItem(REFRESH_KEY)
       }
 
@@ -129,10 +142,14 @@ export const useAuthStore = create<AuthState>((set) => {
 
       try {
         const { data } = await authApi.login(username, password)
-        localStorage.setItem(TOKEN_KEY, data.accessToken)
-        Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
-        localStorage.setItem(REFRESH_KEY, data.refreshToken)
-        Preferences.set({ key: REFRESH_KEY, value: data.refreshToken }).catch(() => {})
+        setAccessToken(data.accessToken)
+        // WEB: tidak ada refresh token dan tidak ada cermin Preferences
+        // (di browser Preferences = localStorage, yang justru ingin dihindari).
+        if (!IS_WEB) {
+          Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
+          localStorage.setItem(REFRESH_KEY, data.refreshToken)
+          Preferences.set({ key: REFRESH_KEY, value: data.refreshToken }).catch(() => {})
+        }
         // Status presence hidup di Redis; kolom DB bisa basi (OFFLINE) padahal WS
         // sudah tersambung. Pertahankan status yang sudah ada, dan jangan pernah
         // menampilkan OFFLINE untuk diri sendiri saat sesi ini jelas hidup.
@@ -169,7 +186,7 @@ export const useAuthStore = create<AuthState>((set) => {
       } catch {
         // Network gagal saat logout — tetap lanjut local cleanup
       }
-      localStorage.removeItem(TOKEN_KEY)
+      removeAccessToken()
       localStorage.removeItem(REFRESH_KEY)
       Preferences.remove({ key: TOKEN_KEY }).catch(() => {})
       Preferences.remove({ key: REFRESH_KEY }).catch(() => {})
@@ -177,7 +194,7 @@ export const useAuthStore = create<AuthState>((set) => {
     },
 
     loadMe: async () => {
-      const token = localStorage.getItem(TOKEN_KEY)
+      const token = getAccessToken()
       if (!token) return
 
       // WS dibuka SEGERA, paralel dgn /users/me -- token di localStorage sudah
@@ -201,7 +218,7 @@ export const useAuthStore = create<AuthState>((set) => {
       } catch {
         wsService.disconnect()
         clearProactiveRefresh()
-        localStorage.removeItem(TOKEN_KEY)
+        removeAccessToken()
         localStorage.removeItem(REFRESH_KEY)
         Preferences.remove({ key: TOKEN_KEY }).catch(() => {})
         Preferences.remove({ key: REFRESH_KEY }).catch(() => {})

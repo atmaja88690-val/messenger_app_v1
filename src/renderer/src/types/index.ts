@@ -120,6 +120,8 @@ export interface Conversation {
 // ============================================================
 export type WsEventType =
   | 'nudge' | 'connected' | 'new_message' | 'message_ack' | 'typing' | 'presence' | 'pong' | 'receipt' | 'error'
+  // Napas server khusus sesi WEB: access token baru dari server
+  | 'token_renew'
   // Call signaling (WebRTC P2P 1:1) -- cermin WS_EVENTS backend
   | 'call_invite' | 'call_answer' | 'call_reject' | 'call_ice' | 'call_end'
   | 'call_created' | 'call_incoming' | 'call_accepted' | 'call_rejected' | 'call_ended'

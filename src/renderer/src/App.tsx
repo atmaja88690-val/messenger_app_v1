@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useAuthStore, restoreAuthTokensFromPreferences } from './stores/auth.store'
 import { waitForServer } from './services/server-breath.service'
+import { getAccessToken } from './services/auth-token'
+import { IS_WEB } from './config/constants'
 import Sidebar from './components/chat/Sidebar'
 import ChatArea from './components/chat/ChatArea'
 import ContactInfoPanel from './components/chat/ContactInfoPanel'
@@ -87,7 +89,7 @@ function App() {
   
     const boot = async (): Promise<void> => {
       await restoreAuthTokensFromPreferences()
-      if (!localStorage.getItem('bsi_access_token')) return
+      if (!getAccessToken()) return
       if (useAuthStore.getState().user) return
       await waitForServer((n, d) =>
         console.warn(`[napas] server belum menjawab, ulang ${d}ms (ke-${n})`)
@@ -105,6 +107,17 @@ function App() {
     window.addEventListener('online', onOnline)
     return () => window.removeEventListener('online', onOnline)
   }, [])
+
+  // WEB: sesi berakhir (tenggang habis, WS 4001, atau 401) -> halaman login.
+  // auth.store sudah membersihkan state lewat listener bsi:logout miliknya.
+  useEffect(() => {
+    if (!IS_WEB) return
+    const keLogin = (): void => {
+      navigate({ to: '/login' })
+    }
+    window.addEventListener('bsi:logout', keLogin)
+    return () => window.removeEventListener('bsi:logout', keLogin)
+  }, [navigate])
 
   // Register FCM push (Android saja; NO-OP di Electron via guard di service).
   useEffect(() => {
