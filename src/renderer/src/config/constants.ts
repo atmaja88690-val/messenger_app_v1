@@ -13,6 +13,17 @@ export const WS_URL = IS_NATIVE
   ? 'wss://chat.bsilongevity.com:4443/ws'
   : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`
 
+// === Deteksi platform untuk keputusan ADAPTIF ===
+// Ketiga bendera di bawah SELALU false di Android dan Desktop, jadi cabang
+// mana pun yang memakainya mustahil mengubah perilaku keduanya.
+const UA = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+const MAX_TOUCH = typeof navigator !== 'undefined' ? navigator.maxTouchPoints : 0
+// iPadOS 13+ menyamar sebagai Macintosh; pembedanya hanya layar sentuh.
+const IS_IPADOS = /Macintosh/.test(UA) && MAX_TOUCH > 1
+export const IS_WEB = !IS_NATIVE
+export const IS_IOS_WEB = IS_WEB && (/iPad|iPhone|iPod/.test(UA) || IS_IPADOS)
+export const IS_IOS_PWA = IS_IOS_WEB && (navigator as unknown as { standalone?: boolean }).standalone === true
+
 export const TOKEN_KEY = 'bsi_access_token'
 export const REFRESH_KEY = 'bsi_refresh_token'
 
