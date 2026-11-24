@@ -84,9 +84,18 @@ jobs:
       # izin pembuatan sertifikat, kuncinya berperan App Manager; buat kunci
       # baru berperan Admin.
       #
-      # CODE_SIGN_IDENTITY ditimpa karena project.pbxproj mematok
-      # "iPhone Developer" di tingkat proyek -- itu identitas development,
-      # bukan distribution, dan target mewarisinya.
+      # JANGAN menambahkan CODE_SIGN_IDENTITY di sini. Percobaan pertama
+      # 24 Nov 2026 gagal tepat di titik ini:
+      #
+      #   error: App has conflicting provisioning settings. App is
+      #   automatically signed for development, but a conflicting code
+      #   signing identity Apple Distribution has been manually specified.
+      #
+      # Dengan CODE_SIGN_STYLE=Automatic, Xcode memilih identitasnya sendiri.
+      # Archive ditandatangani sebagai DEVELOPMENT; -exportArchive yang
+      # menandatangani ULANG sebagai distribution sesuai ExportOptions.
+      # Jadi patokan "iPhone Developer" di project.pbxproj tidak perlu
+      # dilawan -- ia hanya berlaku untuk archive.
       #
       # CURRENT_PROJECT_VERSION dari run_number: TestFlight menolak nomor build
       # yang sudah pernah diunggah, dan run_number selalu naik.
@@ -110,7 +119,6 @@ jobs:
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
             MARKETING_VERSION="$MKT_VERSION" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             archive 2>&1 | tee archive-ios.log
