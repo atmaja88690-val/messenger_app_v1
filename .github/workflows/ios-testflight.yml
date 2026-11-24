@@ -1,0 +1,183 @@
+name: iOS TestFlight
+
+# Alur kerja ini MENGGANTIKAN tugas ios-build.yml hanya untuk distribusi.
+# ios-build.yml TIDAK dihapus: ia tetap berguna sebagai uji kompilasi cepat
+# tanpa penandatanganan, dan tanpa menyentuh akun Apple sama sekali.
+#
+# Yang dilakukan di sini, yang tidak dilakukan ios-build.yml:
+#   - Release, bukan Debug
+#   - ditandatangani sungguhan lewat kunci App Store Connect API
+#   - dikemas dengan xcodebuild -exportArchive, BUKAN zip folder Payload
+#     (zip Payload buatan tangan bukan .ipa yang sah untuk App Store)
+#   - diunggah langsung ke TestFlight
+#
+# Manual saja (workflow_dispatch): runner macOS dihitung 10x kuota.
+
+on:
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: "Versi yang dilihat pengguna (CFBundleShortVersionString)"
+        required: true
+        default: "1.3.9"
+
+jobs:
+  testflight:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v4
+
+      - name: Lihat Xcode yang tersedia
+        run: ls -d /Applications/Xcode*.app
+
+      # Capacitor 8 menuntut Xcode 26 ke atas. Memilih yang tertinggi secara
+      # otomatis supaya alur kerja tidak perlu disunting tiap runner diperbarui.
+      - name: Pilih Xcode terbaru
+        run: |
+          XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Memakai $XC"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+
+      - name: Siapkan Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Pasang dependency
+        run: npm ci
+
+      - name: Build aset web
+        run: npm run build
+
+      - name: Capacitor sync ios
+        run: npx cap sync ios
+
+      # .p8 disimpan sebagai base64 supaya baris barunya tidak rusak saat
+      # melewati GitHub Secrets. Nama berkasnya WAJIB AuthKey_<KEYID>.p8 --
+      # xcodebuild mencari pola nama itu, bukan isinya.
+      - name: Siapkan kunci App Store Connect
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          set -e
+          if [ -z "$ASC_KEY_P8" ] || [ -z "$ASC_KEY_ID" ]; then
+            echo "Secret ASC_KEY_P8 atau ASC_KEY_ID belum diisi." >&2
+            exit 1
+          fi
+          mkdir -p "$HOME/private_keys"
+          printf '%s' "$ASC_KEY_P8" | base64 --decode > "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          chmod 600 "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          # Periksa bentuknya TANPA pernah mencetak isinya ke log.
+          if ! head -1 "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8" | grep -q "BEGIN PRIVATE KEY"; then
+            echo "Kunci .p8 tidak terbaca. Pastikan ASC_KEY_P8 berisi base64 dari berkas .p8." >&2
+            exit 1
+          fi
+          echo "Kunci siap."
+
+      # -allowProvisioningUpdates membuat sertifikat distribusi dan provisioning
+      # profile sendiri lewat kunci API. Kalau langkah ini gagal dengan keluhan
+      # izin pembuatan sertifikat, kuncinya berperan App Manager; buat kunci
+      # baru berperan Admin.
+      #
+      # CODE_SIGN_IDENTITY ditimpa karena project.pbxproj mematok
+      # "iPhone Developer" di tingkat proyek -- itu identitas development,
+      # bukan distribution, dan target mewarisinya.
+      #
+      # CURRENT_PROJECT_VERSION dari run_number: TestFlight menolak nomor build
+      # yang sudah pernah diunggah, dan run_number selalu naik.
+      - name: Archive (Release, ditandatangani)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MKT_VERSION: ${{ github.event.inputs.marketing_version }}
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            MARKETING_VERSION="$MKT_VERSION" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            archive 2>&1 | tee archive-ios.log
+
+      - name: Periksa isi archive
+        run: |
+          set -e
+          PLIST="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier"        "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName"       "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion"           "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes"         "$PLIST"
+          echo "--- entitlements yang benar-benar tertanam ---"
+          codesign -d --entitlements :- \
+            "$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app" 2>/dev/null || true
+
+      # destination=upload membuat xcodebuild mengunggah sendiri ke App Store
+      # Connect. Tidak perlu altool, yang statusnya sudah goyah di Xcode baru.
+      - name: Susun ExportOptions.plist
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>destination</key><string>upload</string>
+          </dict>
+          </plist>
+          EOF
+          cat "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Export dan unggah ke TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee export-ios.log
+
+      - name: Simpan log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-ios-testflight
+          path: |
+            archive-ios.log
+            export-ios.log
+          retention-days: 14
+
+      # Runner memang dibuang setelah selesai, tapi menghapus kunci secara
+      # eksplisit membuat niatnya terbaca dan melindungi dari langkah tambahan
+      # yang mungkin disisipkan di kemudian hari.
+      - name: Hapus kunci
+        if: always()
+        run: rm -rf "$HOME/private_keys"
