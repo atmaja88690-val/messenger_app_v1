@@ -16,6 +16,7 @@ import SettingsDialog from './components/settings/SettingsDialog'
 import UserProfileDialog from './components/users/UserProfileDialog'
 import AboutDialog from './components/settings/AboutDialog'
 import AppMenu from './components/AppMenu'
+import SessionBanner from './components/common/SessionBanner'
 import { callUi } from './platform'
 import type { CallUiEvent, IncomingCallDescriptor } from './platform'
 import { registerPushAndroid } from './services/push-android.service'
@@ -259,6 +260,7 @@ function App() {
           </button>
         </div>
       </div>
+      <SessionBanner onSignIn={handleLogout} />
       <div className="flex-1 flex min-h-0">
         {activeSection === 'chats' ? (
           <>

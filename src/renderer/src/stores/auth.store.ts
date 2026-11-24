@@ -18,7 +18,9 @@ import { wsService } from '../services/ws.service'
 import { unregisterPushAndroid } from '../services/push-android.service'
 import {
   scheduleProactiveRefresh,
-  clearProactiveRefresh
+  clearProactiveRefresh,
+  isRefreshInFlight,
+  setRefreshing
 } from '../services/token-scheduler.service'
 import { Preferences } from '@capacitor/preferences'
 
@@ -27,6 +29,9 @@ interface AuthState {
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
+  // true HANYA bila refresh setelah penolakan WS 4001 gagal. Bukan
+  // penanda offline: kegagalan jaringan tidak pernah menyalakan ini.
+  sesiDitolak: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
   loadMe: () => Promise<void>
@@ -96,8 +101,63 @@ export async function restoreAuthTokensFromPreferences(): Promise<void> {
   }
 }
 
+/**
+ * Refresh yang dipicu penolakan WS 4001 (native saja).
+ *
+ * Empat hasil, bukan dua. Dua di antaranya BUKAN sesi mati:
+ *   'lewati'   refresh LAIN sedang berjalan (proaktif jalan tiap ~12 menit,
+ *              tabrakan itu wajar) -- biarkan ia selesai.
+ *   'jaringan' server tidak terjangkau. Hanya 401/403 yang berarti
+ *              kredensial benar-benar ditolak; sisanya jaringan.
+ * Spanduk HANYA menyala untuk 'gagal'.
+ *
+ * TIDAK menghapus token apa pun saat gagal. Kegagalan jaringan tidak boleh
+ * terbaca sebagai sesi mati -- keputusan 21 September, masih berlaku.
+ *
+ * UTANG: empat baris penyimpanan token di bawah menggandakan yang ada di
+ * startProactiveRefreshCycle. Digandakan dengan sengaja supaya jalur
+ * proaktif yang sudah terbukti tidak disentuh dalam perbaikan ini.
+ */
+type HasilRefreshWs = 'pulih' | 'gagal' | 'jaringan' | 'lewati'
+
+// Meniru isAuthRejection() di api.service.ts, sengaja dengan aturan yang
+// sama persis: HANYA 401/403 yang berarti server benar-benar menolak
+// kredensial. Timeout, DNS gagal, koneksi putus -- semuanya masalah
+// jaringan, dan tidak boleh terbaca sebagai sesi mati.
+function tolakanAuth(err: unknown): boolean {
+  const status = (err as { response?: { status?: number } })?.response?.status
+  return status === 401 || status === 403
+}
+
+async function refreshKarenaWsDitolak(): Promise<HasilRefreshWs> {
+  if (IS_WEB) return 'lewati'
+  if (isRefreshInFlight()) return 'lewati'
+  const refreshToken = localStorage.getItem(REFRESH_KEY)
+  if (!refreshToken) return 'gagal'
+
+  setRefreshing(true)
+  try {
+    const { data } = await authApi.refresh(refreshToken)
+    setAccessToken(data.accessToken)
+    Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
+    localStorage.setItem(REFRESH_KEY, data.refreshToken)
+    Preferences.set({ key: REFRESH_KEY, value: data.refreshToken }).catch(() => {})
+    startProactiveRefreshCycle(data.accessToken)
+    return 'pulih'
+  } catch (err) {
+    return tolakanAuth(err) ? 'gagal' : 'jaringan'
+  } finally {
+    setRefreshing(false)
+  }
+}
+
+// Berapa kali boleh menunggu refresh lain selesai sebelum menyerah diam-diam.
+// Terbatas supaya tidak ada perulangan tak berujung.
+let _tungguRefreshLain = 0
+
 // HMR-safe: module-level ref agar listener lama tidak menumpuk saat hot-replace
 let _bsiLogoutHandler: (() => void) | null = null
+let _bsiWsAuthHandler: (() => void) | null = null
 
 export const useAuthStore = create<AuthState>((set) => {
   // bsi:logout: diemit api.service.ts saat reactive refresh final fail (refresh token expired/invalid)
@@ -112,9 +172,72 @@ export const useAuthStore = create<AuthState>((set) => {
       localStorage.removeItem(REFRESH_KEY)
       Preferences.remove({ key: TOKEN_KEY }).catch(() => {})
       Preferences.remove({ key: REFRESH_KEY }).catch(() => {})
-      set({ user: null, isAuthenticated: false, error: null, isLoading: false })
+      set({
+        user: null,
+        isAuthenticated: false,
+        error: null,
+        isLoading: false,
+        sesiDitolak: false
+      })
     }
     window.addEventListener('bsi:logout', _bsiLogoutHandler)
+
+    // WS 4001 (native): server menolak token. Coba refresh SEKALI.
+    // Sukses -> soket hidup lagi, pengguna tidak perlu tahu apa pun.
+    // Gagal -> spanduk; pengguna yang memutuskan, bukan kode ini.
+    if (_bsiWsAuthHandler) {
+      window.removeEventListener('bsi:ws-auth-rejected', _bsiWsAuthHandler)
+    }
+    _bsiWsAuthHandler = () => {
+      void (async () => {
+        const hasil = await refreshKarenaWsDitolak()
+
+        if (hasil === 'lewati') {
+          // Refresh lain sedang berjalan. Jangan tuduh sesi mati. Beri waktu,
+          // lalu periksa lagi: kalau soket masih mati, minta sekali lagi.
+          if (_tungguRefreshLain >= 3) {
+            console.warn('[auth.store] Refresh lain tak kunjung selesai; berhenti menunggu.')
+            _tungguRefreshLain = 0
+            return
+          }
+          _tungguRefreshLain++
+          setTimeout(() => {
+            if (!wsService.isConnected) {
+              window.dispatchEvent(new Event('bsi:ws-auth-rejected'))
+            }
+          }, 5000)
+          return
+        }
+
+        if (hasil === 'jaringan') {
+          // Server tidak terjangkau. Itu BUKAN sesi mati, jadi spanduk tetap
+          // padam. Coba lagi sebentar; jaring pengaman terakhirnya tetap
+          // pendengar 'online'/'focus' yang sudah ada di ws.service.
+          if (_tungguRefreshLain >= 3) {
+            console.warn('[auth.store] Refresh 4001 gagal karena jaringan; menunggu online/focus.')
+            _tungguRefreshLain = 0
+            return
+          }
+          _tungguRefreshLain++
+          setTimeout(() => {
+            if (!wsService.isConnected) {
+              window.dispatchEvent(new Event('bsi:ws-auth-rejected'))
+            }
+          }, 10_000)
+          return
+        }
+
+        _tungguRefreshLain = 0
+        if (hasil === 'pulih') {
+          set({ sesiDitolak: false })
+          wsService.reconnectNow()
+          return
+        }
+        console.warn('[auth.store] Refresh setelah WS 4001 gagal -- spanduk sesi dinyalakan.')
+        set({ sesiDitolak: true })
+      })()
+    }
+    window.addEventListener('bsi:ws-auth-rejected', _bsiWsAuthHandler)
   }
 
   return {
@@ -122,6 +245,7 @@ export const useAuthStore = create<AuthState>((set) => {
     isAuthenticated: false,
     isLoading: false,
     error: null,
+    sesiDitolak: false,
 
     login: async (username, password) => {
       // Session-revoke: jika sesi aktif → revoke di server dulu sebelum login baru.
@@ -190,7 +314,7 @@ export const useAuthStore = create<AuthState>((set) => {
       localStorage.removeItem(REFRESH_KEY)
       Preferences.remove({ key: TOKEN_KEY }).catch(() => {})
       Preferences.remove({ key: REFRESH_KEY }).catch(() => {})
-      set({ user: null, isAuthenticated: false, error: null })
+      set({ user: null, isAuthenticated: false, error: null, sesiDitolak: false })
     },
 
     loadMe: async () => {
@@ -222,7 +346,7 @@ export const useAuthStore = create<AuthState>((set) => {
         localStorage.removeItem(REFRESH_KEY)
         Preferences.remove({ key: TOKEN_KEY }).catch(() => {})
         Preferences.remove({ key: REFRESH_KEY }).catch(() => {})
-        set({ user: null, isAuthenticated: false, isLoading: false })
+        set({ user: null, isAuthenticated: false, isLoading: false, sesiDitolak: false })
       }
     },
 
@@ -235,6 +359,10 @@ if (import.meta.hot) {
     if (_bsiLogoutHandler) {
       window.removeEventListener('bsi:logout', _bsiLogoutHandler)
       _bsiLogoutHandler = null
+    }
+    if (_bsiWsAuthHandler) {
+      window.removeEventListener('bsi:ws-auth-rejected', _bsiWsAuthHandler)
+      _bsiWsAuthHandler = null
     }
     clearProactiveRefresh()
   })
