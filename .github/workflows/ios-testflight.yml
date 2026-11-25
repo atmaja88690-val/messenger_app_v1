@@ -123,7 +123,12 @@ jobs:
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             archive 2>&1 | tee archive-ios.log
 
+      # Langkah ini MURNI diagnostik. continue-on-error WAJIB di sini: tanpa
+      # itu, satu PlistBuddy yang gagal membaca kunci akan menjatuhkan job
+      # yang archive-nya sebenarnya sudah berhasil -- membuang 20 menit
+      # runner untuk sesuatu yang cuma mencetak informasi.
       - name: Periksa isi archive
+        continue-on-error: true
         run: |
           set -e
           PLIST="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app/Info.plist"
@@ -136,8 +141,27 @@ jobs:
           codesign -d --entitlements :- \
             "$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app" 2>/dev/null || true
 
+      # Diagnostik untuk langkah export, yang BELUM PERNAH berhasil dijalankan.
+      # Kalau export gagal, keluaran di sini yang menjawab pertanyaan pertama:
+      # apakah cloud signing berhasil membuat sertifikat distribusi atau tidak.
+      - name: Lihat identitas penandatanganan dan profil
+        continue-on-error: true
+        run: |
+          echo "=== sertifikat penandatanganan di keychain runner ==="
+          security find-identity -v -p codesigning || true
+          echo
+          echo "=== provisioning profile yang terpasang ==="
+          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles/" 2>/dev/null || \
+            ls -la "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/" 2>/dev/null || \
+            echo "(tidak ada folder provisioning profile)"
+
       # destination=upload membuat xcodebuild mengunggah sendiri ke App Store
       # Connect. Tidak perlu altool, yang statusnya sudah goyah di Xcode baru.
+      #
+      # manageAppVersionAndBuildNumber=false: tanpa ini Xcode boleh menaikkan
+      # sendiri nomor versi/build saat mengunggah. Kita sudah menentukannya
+      # dari github.run_number, dan dua pihak yang mengatur angka yang sama
+      # adalah cara paling rapi membuat nomor build tidak bisa ditebak.
       - name: Susun ExportOptions.plist
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -151,6 +175,7 @@ jobs:
             <key>teamID</key><string>${TEAM_ID}</string>
             <key>signingStyle</key><string>automatic</string>
             <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
             <key>destination</key><string>upload</string>
           </dict>
           </plist>
