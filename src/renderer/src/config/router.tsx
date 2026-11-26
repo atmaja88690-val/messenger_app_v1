@@ -1,6 +1,7 @@
 import { createRouter, createRoute, createRootRoute, Outlet, redirect, createHashHistory } from '@tanstack/react-router'
 import LoginPage from '../components/auth/LoginPage'
 import App from '../App'
+import { getAccessToken } from '../services/auth-token'
 import AdminPage from '../components/admin/AdminPage'
 import DbAdminPage from '../components/admin/DbAdminPage'
 
@@ -18,7 +19,7 @@ const chatRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   beforeLoad: () => {
-    if (!localStorage.getItem('bsi_access_token')) {
+    if (!getAccessToken()) {
       throw redirect({ to: '/login' })
     }
   },
@@ -32,7 +33,7 @@ const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin',
   beforeLoad: () => {
-    if (!localStorage.getItem('bsi_access_token')) {
+    if (!getAccessToken()) {
       throw redirect({ to: '/login' })
     }
   },
@@ -46,7 +47,7 @@ const dbAdminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dbadmin',
   beforeLoad: () => {
-    if (!localStorage.getItem('bsi_access_token')) {
+    if (!getAccessToken()) {
       throw redirect({ to: '/login' })
     }
   },

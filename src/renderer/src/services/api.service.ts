@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
-import { API_URL, TOKEN_KEY, REFRESH_KEY } from '../config/constants'
+import { API_URL, TOKEN_KEY, REFRESH_KEY, IS_WEB } from '../config/constants'
+import { getAccessToken, setAccessToken, removeAccessToken } from './auth-token'
 import type { LoginResponse, AuthTokens, UserStatus, User } from '../types'
 import {
   scheduleProactiveRefresh,
@@ -15,7 +16,7 @@ const api: AxiosInstance = axios.create({
 })
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem(TOKEN_KEY)
+  const token = getAccessToken()
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`
     // Cap token yang BENAR-BENAR dibawa permintaan ini. Tanpa cap ini, saat
@@ -42,7 +43,7 @@ function isAuthRejection(err: unknown): boolean {
 }
 
 function hardLogout() {
-  localStorage.removeItem(TOKEN_KEY)
+  removeAccessToken()
   localStorage.removeItem(REFRESH_KEY)
   Preferences.remove({ key: TOKEN_KEY }).catch(() => {})
   Preferences.remove({ key: REFRESH_KEY }).catch(() => {})
@@ -81,7 +82,7 @@ async function doTokenRefresh(): Promise<string | null> {
       { refreshToken: storedRefresh },
       { timeout: 15000 }
     )
-    localStorage.setItem(TOKEN_KEY, data.accessToken)
+    setAccessToken(data.accessToken)
     Preferences.set({ key: TOKEN_KEY, value: data.accessToken }).catch(() => {})
     localStorage.setItem(REFRESH_KEY, data.refreshToken)
     Preferences.set({ key: REFRESH_KEY, value: data.refreshToken }).catch(() => {})
@@ -104,7 +105,7 @@ async function doTokenRefresh(): Promise<string | null> {
       // yang seharusnya bertahan melewati shutdown laptop.
       const current = localStorage.getItem(REFRESH_KEY)
       if (current && current !== storedRefresh) {
-        return localStorage.getItem(TOKEN_KEY)
+        return getAccessToken()
       }
       // Server bilang refresh token invalid → logout beneran
       hardLogout()
@@ -136,13 +137,21 @@ api.interceptors.response.use(
     // yang sah ada di tangan, tinggal dipakai. Dulu permintaan seperti ini
     // langsung ditolak, dan itulah yang memunculkan kotak "HTTP 401" pada
     // gambar sekaligus daftar chat yang kadang kosong setelah laptop bangun.
-    const tokenSekarang = localStorage.getItem(TOKEN_KEY)
+    const tokenSekarang = getAccessToken()
     const tokenDipakai = (original as { __tokenUsed?: string }).__tokenUsed
     const ulangBasi = (original as { __staleRetry?: number }).__staleRetry ?? 0
     if (tokenSekarang && tokenDipakai && tokenSekarang !== tokenDipakai && ulangBasi < 2) {
       ;(original as { __staleRetry?: number }).__staleRetry = ulangBasi + 1
       original.headers.Authorization = `Bearer ${tokenSekarang}`
       return api(original)
+    }
+
+    // WEB: tidak ada refresh token. Token hanya diperbarui server lewat WS
+    // (token_renew). 401 yang TIDAK basi (sudah dicek di atas) berarti sesi
+    // sudah dicabut server -> kembali ke login. Native tidak melewati blok ini.
+    if (IS_WEB) {
+      hardLogout()
+      return Promise.reject(error)
     }
 
     if (original._retry) {
@@ -165,7 +174,7 @@ api.interceptors.response.use(
           // menyimpan token baru. Menolak di sini membuang permintaan yang
           // sebenarnya masih bisa jalan. Kalau memang sudah logout,
           // localStorage kosong dan penolakan tetap terjadi.
-          const dipakai = token ?? localStorage.getItem(TOKEN_KEY)
+          const dipakai = token ?? getAccessToken()
           if (!dipakai) return reject(error)
           original.headers.Authorization = `Bearer ${dipakai}`
           resolve(api(original))
@@ -205,14 +214,15 @@ api.interceptors.response.use(
 // Auth
 export const authApi = {
   login: (username: string, password: string) =>
-    api.post<LoginResponse>('/auth/login', { username, password }),
+    // WEB memakai rute khusus: sesi bertanda WEB, tanpa refresh token.
+    api.post<LoginResponse>(IS_WEB ? '/auth/web/login' : '/auth/login', { username, password }),
   logout: () =>
     axios.post(
       `${API_URL}/auth/logout`,
       {},
       {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) ?? ''}`,
+          Authorization: `Bearer ${getAccessToken() ?? ''}`,
           'Content-Type': 'application/json'
         },
         timeout: 5000

@@ -1,4 +1,5 @@
-import { WS_URL, TOKEN_KEY } from '../config/constants'
+import { WS_URL, IS_WEB } from '../config/constants'
+import { getAccessToken, setAccessToken } from './auth-token'
 import type { WsEvent, WsEventType } from '../types'
 import { isRefreshInFlight } from './token-scheduler.service'
 
@@ -7,6 +8,10 @@ type WsHandler<T = unknown> = (payload: T) => void
 const PING_INTERVAL_MS = 30_000
 const PONG_TIMEOUT_MS = 70_000
 const REFRESH_WAIT_MS = 1000 // saat token lagi di-refresh, cek lagi tiap 1s
+// 4001 = server menolak token. Satu permintaan refresh per menit sudah
+// cukup; lebih dari itu hanya memukul server dengan kredensial yang
+// sama-sama mati -- itulah yang terjadi selama ini.
+const AUTH_REJECT_COOLDOWN_MS = 60_000
 
 class WsService {
   private ws: WebSocket | null = null
@@ -18,6 +23,7 @@ class WsService {
   private reconnectDelay = 1000
   private lastPongAt = 0
   private offlineQueue: Array<{ type: string; payload: unknown }> = []
+  private lastAuthRejectAt = 0
 
   connect() {
     if (
@@ -34,7 +40,7 @@ class WsService {
       return
     }
 
-    const token = localStorage.getItem(TOKEN_KEY)
+    const token = getAccessToken()
     if (!token) return
 
     this.shouldReconnect = true
@@ -57,6 +63,12 @@ class WsService {
         // mati, TIDAK ADA notifikasi desktop sama sekali.
         this.lastPongAt = Date.now()
         this.resetPongWatchdog()
+        // WEB: server memperbarui access token lewat soket (napas server).
+        // Native tidak pernah menerima event ini.
+        if (IS_WEB && event.type === 'token_renew') {
+          const t = (event.payload as { accessToken?: string } | null)?.accessToken
+          if (t) setAccessToken(t)
+        }
         const set = this.handlers.get(event.type as WsEventType)
         if (set) set.forEach((fn) => fn(event.payload))
       } catch {
@@ -66,11 +78,37 @@ class WsService {
 
     this.ws.onerror = (e) => console.error('[WS] Error', e)
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (ev) => {
       console.log('[WS] Disconnected')
       this.stopPing()
       this.clearPongWatchdog()
       this.ws = null
+      // WEB: 4001 = sesi dicabut server (tenggang habis / logout / kedaluwarsa).
+      // Web tidak punya refresh token -> berhenti menyambung ulang, kembali ke login.
+      if (IS_WEB && ev.code === 4001) {
+        console.warn(`[WS] 4001 (${ev.reason}) -- sesi web berakhir, kembali ke login`)
+        this.shouldReconnect = false
+        window.dispatchEvent(new Event('bsi:logout'))
+        return
+      }
+
+      // NATIVE: 4001 = server menolak token (kedaluwarsa / sesi dicabut).
+      // Menyambung ulang dengan token yang sama tidak akan menghidupkannya.
+      // Putus perulangan, lalu minta SATU refresh. auth.store yang
+      // memutuskan hasilnya: sukses -> reconnectNow(), gagal -> spanduk.
+      // Tidak ada token yang dihapus di sini.
+      if (!IS_WEB && ev.code === 4001) {
+        this.shouldReconnect = false
+        const sekarang = Date.now()
+        if (sekarang - this.lastAuthRejectAt < AUTH_REJECT_COOLDOWN_MS) {
+          console.warn('[WS] 4001 masih dalam masa tenang -- tidak meminta refresh lagi')
+          return
+        }
+        this.lastAuthRejectAt = sekarang
+        console.warn(`[WS] 4001 (${ev.reason}) -- minta satu refresh token`)
+        window.dispatchEvent(new Event('bsi:ws-auth-rejected'))
+        return
+      }
       if (this.shouldReconnect) {
         // Kalau sedang refresh, tunggu sebentar (jangan naikkan backoff).
         // Kalau bukan, naikkan backoff normal.
@@ -205,6 +243,12 @@ if (typeof window !== 'undefined') {
   }
   window.addEventListener('online', () => bangun('online'))
   window.addEventListener('focus', () => bangun('focus'))
+  // Safari iPhone: kembali dari bfcache tidak selalu memicu visibilitychange.
+  if (IS_WEB) {
+    window.addEventListener('pageshow', (e) => {
+      if ((e as PageTransitionEvent).persisted) bangun('pageshow')
+    })
+  }
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') bangun('visible')
   })
