@@ -14,13 +14,23 @@ export const WS_URL = IS_NATIVE
   : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`
 
 // === Deteksi platform untuk keputusan ADAPTIF ===
-// Ketiga bendera di bawah SELALU false di Android dan Desktop, jadi cabang
-// mana pun yang memakainya mustahil mengubah perilaku keduanya.
+// IS_IOS_WEB dan IS_IOS_PWA SELALU false di Android dan Desktop, jadi cabang
+// mana pun yang memakainya mustahil mengubah perilaku keduanya. IS_WEB
+// butuh pengecualian Electron -- lihat catatan di bawah.
 const UA = typeof navigator !== 'undefined' ? navigator.userAgent : ''
 const MAX_TOUCH = typeof navigator !== 'undefined' ? navigator.maxTouchPoints : 0
 // iPadOS 13+ menyamar sebagai Macintosh; pembedanya hanya layar sentuh.
 const IS_IPADOS = /Macintosh/.test(UA) && MAX_TOUCH > 1
-export const IS_WEB = !IS_NATIVE
+// Electron BUKAN "web". Capacitor.isNativePlatform() mengembalikan false di
+// Electron, jadi !IS_NATIVE saja membuat aplikasi desktop terbaca sebagai WEB.
+// Akibatnya token pindah ke sessionStorage dan refresh token tidak pernah
+// disimpan -- auto-login EXE rusak. IS_NATIVE sendiri TIDAK boleh diubah:
+// ia yang memilih API_URL/WS_URL relatif untuk Electron.
+const IS_ELECTRON =
+  (typeof navigator !== 'undefined' && /Electron\//.test(navigator.userAgent)) ||
+  (typeof window !== 'undefined' &&
+    (window as unknown as { api?: unknown }).api !== undefined)
+export const IS_WEB = !IS_NATIVE && !IS_ELECTRON
 export const IS_IOS_WEB = IS_WEB && (/iPad|iPhone|iPod/.test(UA) || IS_IPADOS)
 export const IS_IOS_PWA = IS_IOS_WEB && (navigator as unknown as { standalone?: boolean }).standalone === true
 
