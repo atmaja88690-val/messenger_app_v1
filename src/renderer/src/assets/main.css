@@ -22,13 +22,13 @@ body {
    platform, dan tidak ada perubahan tampilan sedikit pun di kedua platform
    yang sudah berjalan.
 
-   BELUM AKTIF DI IOS SEKALIPUN. env(safe-area-inset-*) baru mengembalikan
+   AKTIF DI IOS sejak 26 November 2026. env(safe-area-inset-*) mengembalikan
    nilai bukan-nol setelah index.html memuat:
      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-   Meta itu sengaja belum ditambahkan karena menyentuh rendering Android dan
-   wajib diuji fisik lebih dulu. Sampai saat itu blok ini dorman di mana-mana.
+   Meta itu SUDAH ditambahkan 26 Nov 2026 dan diuji fisik di Android. Di
+   Android dan Electron env() tetap tak dikenal, jadi fallback 0px yang dipakai.
 
-   Cara memakainya nanti (setelah ada iPhone untuk dilihat): pasang lewat
+   Dipasang lewat
    nilai arbitrer Tailwind di komponen, bukan lewat kelas utilitas baru --
    header  -> pt-[calc(0.625rem+var(--safe-top))]
    inputbar-> pb-[calc(0.75rem+var(--safe-bottom))]

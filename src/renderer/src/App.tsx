@@ -205,7 +205,7 @@ function App() {
 
   return (
     <div className="flex flex-col w-full h-full bg-gray-900 text-white">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-700 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-2.5 pt-[calc(0.625rem+var(--safe-top))] border-b border-gray-700 flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           {/* Menu aplikasi (hamburger) — File/View/Tools/Help */}
           <AppMenu

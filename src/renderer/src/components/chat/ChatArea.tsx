@@ -890,7 +890,7 @@ export default function ChatArea({
         />
       )}
 
-      <div className="relative p-3 border-t border-gray-200 bg-white flex-shrink-0">
+      <div className="relative p-3 pb-[calc(0.75rem+var(--safe-bottom))] border-t border-gray-200 bg-white flex-shrink-0">
         {emojiOpen && (
           <>
             {/* Lapisan tembus pandang: klik di mana pun menutup pemilih,
