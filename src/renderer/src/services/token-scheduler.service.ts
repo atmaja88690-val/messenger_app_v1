@@ -12,6 +12,18 @@
 let scheduledTimer: ReturnType<typeof setTimeout> | null = null
 let isRefreshing = false
 
+// Jaring untuk kegagalan refresh proaktif. Penjadwal utama hanya dijadwalkan
+// ulang pada jalur SUKSES, jadi tanpa ini satu 502 mematikannya sampai
+// jendela kebetulan difokuskan.
+//
+// Jedanya BERBASIS WAKTU, bukan berbasis umur token. scheduleProactiveRefresh
+// melihat lifetimeMs <= 0 pada token yang sudah mati dan langsung memanggil
+// refresh lagi tanpa jeda -- memakai ia di jalur gagal berarti setiap klien
+// memukul backend yang sedang tumbang secepat event loop sanggup.
+let pemulihanTimer: ReturnType<typeof setTimeout> | null = null
+let pemulihanPutaran = 0
+const PEMULIHAN_JEDA_MS = [60_000, 120_000, 240_000]
+
 // Simpan token + callback aktif agar wake/online recovery bisa pakai ulang
 let currentToken: string | null = null
 let currentCallback: (() => Promise<void>) | null = null
@@ -37,11 +49,42 @@ function decodeJwtExp(token: string): number | null {
   }
 }
 
+function batalPemulihan(): void {
+  if (pemulihanTimer !== null) {
+    clearTimeout(pemulihanTimer)
+    pemulihanTimer = null
+  }
+}
+
+function jadwalkanPemulihan(cb: () => Promise<void>): void {
+  batalPemulihan()
+  if (pemulihanPutaran >= PEMULIHAN_JEDA_MS.length) {
+    console.error(
+      `[token-scheduler] Pemulihan menyerah setelah ${pemulihanPutaran} putaran. Menunggu online/focus/visible.`
+    )
+    return
+  }
+  const jeda = PEMULIHAN_JEDA_MS[pemulihanPutaran]
+  pemulihanPutaran++
+  console.warn(
+    `[token-scheduler] Penjadwal utama mati karena refresh gagal. Pemulihan dalam ${jeda / 1000}s (putaran ${pemulihanPutaran}/${PEMULIHAN_JEDA_MS.length}).`
+  )
+  pemulihanTimer = setTimeout(() => {
+    pemulihanTimer = null
+    void runRefreshWithRetry(cb)
+  }, jeda)
+}
+
 export function clearProactiveRefresh(): void {
   if (scheduledTimer !== null) {
     clearTimeout(scheduledTimer)
     scheduledTimer = null
   }
+  // Wajib ikut dibatalkan: clearProactiveRefresh dipanggil hardLogout, dan
+  // timer pemulihan yang tertinggal akan terus mencoba menyegarkan sesi yang
+  // sudah dibuang penggunanya.
+  batalPemulihan()
+  pemulihanPutaran = 0
   currentToken = null
   currentCallback = null
 }
@@ -62,9 +105,11 @@ async function runRefreshWithRetry(cb: () => Promise<void>): Promise<void> {
   }
   isRefreshing = true
   let attempt = 0
+  let sukses = false
   while (attempt <= MAX_RETRIES) {
     try {
       await cb()
+      sukses = true
       break
     } catch {
       attempt++
@@ -78,6 +123,15 @@ async function runRefreshWithRetry(cb: () => Promise<void>): Promise<void> {
     }
   }
   isRefreshing = false
+
+  if (sukses) {
+    // Jalur sukses sudah menjadwalkan siklus berikutnya sendiri (di dalam
+    // callback-nya). Di sini cukup membersihkan jejak kegagalan sebelumnya.
+    pemulihanPutaran = 0
+    batalPemulihan()
+  } else {
+    jadwalkanPemulihan(cb)
+  }
 }
 
 export function scheduleProactiveRefresh(
