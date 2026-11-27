@@ -58,8 +58,21 @@ function startProactiveRefreshCycle(accessToken: string): void {
       localStorage.setItem(REFRESH_KEY, data.refreshToken)
       Preferences.set({ key: REFRESH_KEY, value: data.refreshToken }).catch(() => {})
 
-      wsService.disconnect()
-      setTimeout(() => wsService.connect(), 300)
+      // Soket TIDAK dirobohkan di sini. Server hanya memeriksa token saat
+      // jabat tangan; untuk sesi native (APK/EXE) tidak ada pemeriksa ulang
+      // sama sekali -- seluruh mesin perpanjangan di ws.handler.ts terkurung
+      // dalam if (client.isWeb), dan baris 29 di sana menyatakannya terus
+      // terang. Soket yang sudah terbuka tetap sah meski tokennya diperbarui.
+      //
+      // Perobohan lama membuat dua kerusakan sekaligus: jeda buta ~430 ms
+      // lima kali per jam (terukur 27 Nov 2026), dan disconnect() ikut
+      // MEMBUANG offlineQueue sehingga pesan yang belum terkirim lenyap tanpa
+      // jejak bila pengguna menekan Enter tepat di detik itu.
+      //
+      // reconnectNow() langsung kembali bila soket masih terbuka, jadi pada
+      // jalur normal ia tidak berbiaya apa pun; bila ternyata sudah putus, ia
+      // menyambung dengan token yang baru saja disegarkan.
+      wsService.reconnectNow()
 
       startProactiveRefreshCycle(data.accessToken)
     } catch {
