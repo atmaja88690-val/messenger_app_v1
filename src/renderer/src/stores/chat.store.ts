@@ -6,6 +6,35 @@ import { waitForServer } from '../services/server-breath.service'
 import { wsService } from '../services/ws.service'
 import { useAuthStore } from './auth.store'
 
+// ─── Catch-up setelah soket tersambung ulang ──────────────────────────────
+// Disimpan di tingkat modul, bukan di state zustand: nilainya tidak pernah
+// dirender, dan menaruhnya di state hanya memicu render ulang tanpa guna.
+let pulihSedangJalan = false
+let pulihSelesaiAt = 0
+const PULIH_JEDA_MIN_MS = 3_000
+const PULIH_MAX_HALAMAN = 10
+const PULIH_UKURAN_HALAMAN = 50
+
+/**
+ * seq tertinggi yang BENAR-BENAR berasal dari server.
+ *
+ * seq bertipe `string | number | undefined` (types/index.ts): STRING pada
+ * lastMessage ringkas, NUMBER pada respons penuh. Dibandingkan sebagai
+ * string hasilnya salah -- '9' > '40' bernilai true secara leksikal.
+ *
+ * Pesan optimistic belum punya seq dan sengaja dilewati: kalau ikut
+ * dihitung, kursornya mundur dan kita menarik ulang pesan yang sudah ada.
+ */
+function seqTertinggi(daftar: Message[]): number | null {
+  let maks = -1
+  for (const m of daftar) {
+    if (m.seq === undefined || m.seq === null) continue
+    const n = Number(m.seq)
+    if (Number.isFinite(n) && n > maks) maks = n
+  }
+  return maks < 0 ? null : maks
+}
+
 interface ChatState {
   conversations: Conversation[]
   activeId: string | null
@@ -46,6 +75,9 @@ interface ChatState {
   markRead: (conversationId: string, seq: string | number) => void
   readCursors: Record<string, string>  // conversationId -> seq terakhir yg dibaca LAWAN bicara
   _onReceipt: (p: { userId: string; seq: string; conversationId: string }) => void
+  // Menyusul pesan yang terlewat selama soket mati. Dipanggil otomatis
+  // ketika server mengonfirmasi sambungan; aman dipanggil berulang kali.
+  pulihkanPesan: (alasan: string) => Promise<void>
   _onNewMessage: (m: Message) => void
   _onPresence: (p: { userId: string; status: UserStatus }) => void
   _onAck: (p: { clientMsgId: string; id: string; seq: string; conversationId: string }) => void
@@ -549,6 +581,92 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  pulihkanPesan: async (alasan) => {
+    if (pulihSedangJalan) {
+      console.debug(`[catch-up] (${alasan}) dilewati: masih berjalan`)
+      return
+    }
+    if (Date.now() - pulihSelesaiAt < PULIH_JEDA_MIN_MS) {
+      console.debug(`[catch-up] (${alasan}) dilewati: baru saja berjalan`)
+      return
+    }
+    // Saat boot belum ada apa pun di layar; pemuatan awal yang mengurusnya.
+    // Tanpa penjaga ini, sambungan pertama memicu satu panggilan daftar
+    // percakapan yang mubazir di tiap kali aplikasi dibuka.
+    if (get().conversations.length === 0) {
+      console.debug(`[catch-up] (${alasan}) dilewati: percakapan belum dimuat`)
+      return
+    }
+
+    pulihSedangJalan = true
+    const mulai = Date.now()
+    let totalSusulan = 0
+    try {
+      // Sidebar lebih dulu: badge, pratinjau, dan percakapan BARU yang
+      // dibuat orang lain selama kita putus. loadConversations sudah punya
+      // retry + napas server sendiri.
+      await get().loadConversations()
+
+      // Hanya percakapan yang pesannya sudah ada di memori. Sisanya sembuh
+      // sendiri saat dibuka, karena selectConversation memuat penuh.
+      const ids = Object.keys(get().messages)
+      for (const convId of ids) {
+        let kursor = seqTertinggi(get().messages[convId] ?? [])
+        if (kursor === null) continue // tidak ada jangkar; biarkan dimuat saat dibuka
+
+        try {
+          for (let halaman = 0; halaman < PULIH_MAX_HALAMAN; halaman++) {
+            const { data } = await messagesApi.list(convId, {
+              afterSeq: String(kursor),
+              limit: PULIH_UKURAN_HALAMAN
+            })
+            const susulan: Message[] = data.messages ?? data.data ?? []
+            if (susulan.length === 0) break
+
+            // Lewat _onNewMessage, BUKAN set() sendiri: ia sudah idempoten
+            // (dedupe id/clientMsgId, kembali apa adanya bila tak berubah)
+            // sekaligus mengurus pinnedMsg, lastMessage, lastMessageAt, dan
+            // urutan sidebar. Jalur penggabungan kedua pasti lama-lama
+            // berbeda perilaku dari yang pertama.
+            for (const m of susulan) get()._onNewMessage(m)
+            totalSusulan += susulan.length
+
+            if (!data.hasMore) break
+
+            const lanjut = seqTertinggi(susulan)
+            if (lanjut === null || lanjut <= kursor) {
+              // Kursor tidak maju: server mengembalikan sesuatu yang tidak
+              // kita duga. Berhenti -- perulangan tak terhingga jauh lebih
+              // buruk daripada beberapa pesan yang tertunda sampai
+              // percakapannya dibuka.
+              console.warn(`[catch-up] kursor tidak maju di ${convId}, berhenti`)
+              break
+            }
+            kursor = lanjut
+
+            if (halaman === PULIH_MAX_HALAMAN - 1) {
+              console.warn(
+                `[catch-up] ${convId} masih bersisa setelah ${PULIH_MAX_HALAMAN} halaman; sisanya dimuat saat percakapan dibuka`
+              )
+            }
+          }
+        } catch (e) {
+          // Satu percakapan gagal tidak boleh menggugurkan yang lain.
+          console.error(`[catch-up] gagal pada ${convId}`, e)
+        }
+      }
+
+      console.info(
+        `[catch-up] (${alasan}) selesai: ${totalSusulan} pesan susulan, ${ids.length} percakapan, ${Date.now() - mulai}ms`
+      )
+    } catch (e) {
+      console.error(`[catch-up] (${alasan}) gagal`, e)
+    } finally {
+      pulihSedangJalan = false
+      pulihSelesaiAt = Date.now()
+    }
+  },
+
   _onNewMessage: (m) => {
     set((s) => {
       const existing = s.messages[m.conversationId] ?? []
@@ -697,6 +815,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
 }))
 
 // Wire WS events sekali (modul-level)
+// Soket baru hidup -> susul yang terlewat.
+//
+// Dipicu oleh 'connected' yang DIKIRIM SERVER setelah token diterima
+// (ws.handler.ts), bukan oleh onopen. Jabat tangan yang selesai belum
+// berarti sesinya sah: server masih bisa menutup soket sedetik kemudian
+// dengan 4001. Menunggu 'connected' berarti catch-up hanya jalan ketika
+// sambungannya benar-benar bisa dipakai.
+wsService.on('connected', () => {
+  void useChatStore.getState().pulihkanPesan('ws-connected')
+})
 wsService.on('new_message', (p) => useChatStore.getState()._onNewMessage(p as Message))
 wsService.on('presence', (p) =>
   useChatStore.getState()._onPresence(p as { userId: string; status: UserStatus })
