@@ -330,8 +330,25 @@ export interface AttachmentInput {
 }
 
 export const messagesApi = {
-  list: (convId: string, before?: string) =>
-    api.get(`/messages/${convId}`, { params: before ? { before } : {} }),
+  // Kursor dua arah, cocok dengan listSchema di messages.routes.ts:
+  //   beforeSeq -> menggulung riwayat ke ATAS (seq < kursor)
+  //   afterSeq  -> menyusul pesan yang TERLEWAT setelah soket tersambung
+  //                ulang (seq > kursor); server mengurutkannya menaik supaya
+  //                bloknya pasti bersambung dengan kursor, tanpa lubang
+  // Server menjawab 400 bila keduanya dikirim bersamaan.
+  //
+  // Parameter lama bernama `before` dan TIDAK PERNAH dibaca server -- zod
+  // mengabaikan kunci tak dikenal, sehingga server selalu mengembalikan
+  // halaman terbaru. Tidak ada pemanggil yang pernah mengisinya, jadi
+  // penggantian ini tidak memutus apa pun; typecheck yang menjaganya.
+  //
+  // Objek bernama dipilih, bukan argumen posisional: list(id, undefined, '40')
+  // gampang tertukar urutannya dan TypeScript tidak akan menolaknya karena
+  // sama-sama string.
+  list: (
+    convId: string,
+    opts?: { beforeSeq?: string; afterSeq?: string; limit?: number }
+  ) => api.get(`/messages/${convId}`, { params: { ...(opts ?? {}) } }),
   send: (
     convId: string,
     content: string,
